@@ -1,0 +1,11 @@
+[x] industry register api
+[x] industry login api
+[x] industry_partners
+- id
+- name
+- type (enum: corporate, startup, msme, csr, research_lab, incubator, psu)
+- sector_tags (array, matches theme categories)
+- contribution_type (enum: funding, mentorship, prototyping, deployment, testing)
+- location / operating_districts
+- contact_details
+- verification_status

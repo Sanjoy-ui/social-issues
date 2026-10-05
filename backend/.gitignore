@@ -22,3 +22,4 @@ build/
 # OS metadata
 .DS_Store
 Thumbs.db
+.obsidian
