@@ -49,6 +49,9 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
+      !originalRequest.url?.includes('/api/v1/citizen/login') &&
+      !originalRequest.url?.includes('/api/v1/citizen/register') &&
+      !originalRequest.url?.includes('/api/v1/citizen/refresh') &&
       !originalRequest.url?.includes('/api/v1/university/login') &&
       !originalRequest.url?.includes('/api/v1/university/refresh') &&
       !originalRequest.url?.includes('/api/v1/industry/login') &&
@@ -73,7 +76,9 @@ api.interceptors.response.use(
       try {
         const currentRole = useAuthStore.getState().role || localStorage.getItem('civic_user_role');
         const refreshUrl =
-          currentRole === 'GOVT'
+          currentRole === 'CITIZEN'
+            ? `${api.defaults.baseURL}/api/v1/citizen/refresh`
+            : currentRole === 'GOVT'
             ? `${api.defaults.baseURL}/api/v1/govt/refresh`
             : currentRole === 'INDUSTRY'
             ? `${api.defaults.baseURL}/api/v1/industry/refresh`
@@ -87,6 +92,13 @@ api.interceptors.response.use(
 
         const newAccessToken = data.accessToken;
         useAuthStore.getState().setAccessToken(newAccessToken);
+        if (data.data?.citizen) {
+          useAuthStore.getState().setAuth({
+            role: 'CITIZEN',
+            citizen: data.data.citizen,
+            accessToken: newAccessToken,
+          });
+        }
         processQueue(null, newAccessToken);
 
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;

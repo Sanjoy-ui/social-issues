@@ -1,11 +1,6 @@
-[x] industry register api
-[x] industry login api
-[x] industry_partners
-- id
-- name
-- type (enum: corporate, startup, msme, csr, research_lab, incubator, psu)
-- sector_tags (array, matches theme categories)
-- contribution_type (enum: funding, mentorship, prototyping, deployment, testing)
-- location / operating_districts
-- contact_details
-- verification_status
+[x] citizen register api 
+[x] citizen login api
+[x] citizen access refresh token for login 
+[x] issue mongoose schema with mongodb connection
+[x] cloudinary stream file/image upload integration
+[x] citizen issue registration form modal in dashboard 

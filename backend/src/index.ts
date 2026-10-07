@@ -7,6 +7,9 @@ import { notFoundHandler } from "./middleware/notFound.js";
 import universityRoutes from "./routes/university.routes.js";
 import industryRoutes from "./routes/industry.routes.js";
 import govtNodalRoutes from "./routes/govtNodal.routes.js";
+import citizenRoutes from "./routes/citizen.routes.js";
+import issueRoutes from "./routes/issue.routes.js";
+import { connectMongoDB } from "./config/mongo.js";
 
 dotenv.config();
 
@@ -88,10 +91,37 @@ app.post("/api/clear-cookie", (_req, res) => {
 app.use("/api/v1/university", universityRoutes);
 app.use("/api/v1/industry", industryRoutes);
 app.use("/api/v1/govt", govtNodalRoutes);
+app.use("/api/v1/citizen", citizenRoutes);
+app.use("/api/v1/issue", issueRoutes);
 
 // Middleware for unhandled routes (404 Not Found)
 app.use(notFoundHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  
+  // Initialize MongoDB connection via Mongoose
+  await connectMongoDB();
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "citizens" (
+        "id" varchar(255) PRIMARY KEY,
+        "full_name" text NOT NULL,
+        "email" text NOT NULL UNIQUE,
+        "password_hash" text NOT NULL,
+        "phone" text,
+        "state" text,
+        "district" text,
+        "pincode" text,
+        "refresh_token" text,
+        "is_email_verified" boolean DEFAULT false,
+        "is_active" boolean DEFAULT true,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      );
+    `);
+    console.log("Database: 'citizens' table verified/initialized successfully.");
+  } catch (error) {
+    console.error("Database initialization notice:", error);
+  }
 });

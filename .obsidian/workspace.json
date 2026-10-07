@@ -183,16 +183,16 @@
   },
   "active": "fe310304828ec7e6",
   "lastOpenFiles": [
-    "agentcreation",
-    "backend/src/routes/govtNodal.routes.ts",
-    "backend/src/controller/govtNodal.controller.ts",
-    "backend/src/services/govtNodal.service.ts",
-    "backend/src/dto/govtNodal.dto.ts",
-    "backend/src/models/govtEnums.ts",
-    "frontend/dist/assets/index-DL1uoZGi.css",
-    "frontend/dist/assets/index-CvvD3Vno.js",
-    "backend/pnpm-workspace.yaml",
-    "backend/pnpm-lock.yaml",
-    "backend/src/routes/industry.routes.ts"
+    "frontend/web/src/app/globals.css",
+    "frontend/web/src/app",
+    "frontend/web/src",
+    "frontend/web",
+    "frontend/src/component/issue/RegisterIssueModal.tsx",
+    "frontend/src/component/issue",
+    "backend/src/routes/issue.routes.ts",
+    "backend/src/controller/issue.controller.ts",
+    "backend/src/services/issue.service.ts",
+    "backend/src/dto/issue.dto.ts",
+    "backend/src/utils/cloudinary.util.ts"
   ]
 }

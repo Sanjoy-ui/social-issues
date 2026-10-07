@@ -65,6 +65,20 @@ export interface GovtOfficerUser {
   contactNo?: string;
 }
 
+export interface CitizenUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  state?: string | null;
+  district?: string | null;
+  pincode?: string | null;
+  isEmailVerified?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface AuthState {
   role: UserRole | null;
   spoc: SpocUser | null;
@@ -72,6 +86,7 @@ interface AuthState {
   industrySpoc: IndustrySpocUser | null;
   industryPartner: IndustryPartnerData | null;
   govtOfficer: GovtOfficerUser | null;
+  citizen: CitizenUser | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -84,24 +99,36 @@ interface AuthState {
     industrySpoc?: IndustrySpocUser | null;
     industryPartner?: IndustryPartnerData | null;
     govtOfficer?: GovtOfficerUser | null;
+    citizen?: CitizenUser | null;
     accessToken: string;
   }) => void;
   setAccessToken: (token: string) => void;
   setError: (error: string | null) => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
+  fetchCitizenProfile: () => Promise<CitizenUser | null>;
 }
 
+const getInitialCitizen = (): CitizenUser | null => {
+  try {
+    const raw = localStorage.getItem('civic_citizen');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  role: null,
+  role: (typeof window !== 'undefined' ? (localStorage.getItem('civic_user_role') as UserRole) : null) || null,
   spoc: null,
   university: null,
   industrySpoc: null,
   industryPartner: null,
   govtOfficer: null,
+  citizen: typeof window !== 'undefined' ? getInitialCitizen() : null,
   accessToken: null,
-  isAuthenticated: false,
-  isLoading: true,
+  isAuthenticated: typeof window !== 'undefined' ? Boolean(localStorage.getItem('civic_user_role')) : false,
+  isLoading: false,
   error: null,
 
   setAuth: ({
@@ -111,9 +138,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     industrySpoc = null,
     industryPartner = null,
     govtOfficer = null,
+    citizen = null,
     accessToken,
   }) => {
     localStorage.setItem('civic_user_role', role);
+    if (citizen) {
+      localStorage.setItem('civic_citizen', JSON.stringify(citizen));
+    }
     set({
       role,
       spoc,
@@ -121,6 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       industrySpoc,
       industryPartner,
       govtOfficer,
+      citizen,
       accessToken,
       isAuthenticated: true,
       isLoading: false,
@@ -135,7 +167,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     try {
       const currentRole = get().role || (localStorage.getItem('civic_user_role') as UserRole);
-      if (currentRole === 'GOVT') {
+      if (currentRole === 'CITIZEN') {
+        await api.post('/api/v1/citizen/logout');
+      } else if (currentRole === 'GOVT') {
         await api.post('/api/v1/govt/logout');
       } else if (currentRole === 'INDUSTRY') {
         await api.post('/api/v1/industry/logout');
@@ -146,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Logout API failed, clearing local auth state', err);
     } finally {
       localStorage.removeItem('civic_user_role');
+      localStorage.removeItem('civic_citizen');
       set({
         role: null,
         spoc: null,
@@ -153,6 +188,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         industrySpoc: null,
         industryPartner: null,
         govtOfficer: null,
+        citizen: null,
         accessToken: null,
         isAuthenticated: false,
         isLoading: false,
@@ -161,12 +197,62 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  fetchCitizenProfile: async () => {
+    try {
+      const res = await api.get('/api/v1/citizen/me');
+      if (res.data?.data?.citizen) {
+        const citizen = res.data.data.citizen;
+        localStorage.setItem('civic_citizen', JSON.stringify(citizen));
+        localStorage.setItem('civic_user_role', 'CITIZEN');
+        set({ citizen, role: 'CITIZEN', isAuthenticated: true });
+        return citizen;
+      }
+    } catch {
+      await get().checkAuth();
+      return get().citizen;
+    }
+    return null;
+  },
+
   checkAuth: async () => {
     set({ isLoading: true });
     const storedRole = (localStorage.getItem('civic_user_role') as UserRole) || 'UNIVERSITY';
 
     try {
-      if (storedRole === 'GOVT') {
+      if (storedRole === 'CITIZEN') {
+        const refreshRes = await api.post('/api/v1/citizen/refresh');
+        const newAccessToken = refreshRes.data.accessToken;
+        let citizen = refreshRes.data.data?.citizen;
+
+        if (newAccessToken) {
+          set({ accessToken: newAccessToken });
+
+          if (!citizen) {
+            try {
+              const profileRes = await api.get('/api/v1/citizen/me', {
+                headers: { Authorization: `Bearer ${newAccessToken}` },
+              });
+              citizen = profileRes.data.data?.citizen;
+            } catch (err) {
+              console.warn('Citizen profile query fallback error:', err);
+            }
+          }
+
+          if (citizen) {
+            localStorage.setItem('civic_citizen', JSON.stringify(citizen));
+            localStorage.setItem('civic_user_role', 'CITIZEN');
+          }
+
+          set({
+            role: 'CITIZEN',
+            citizen: citizen || getInitialCitizen(),
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return true;
+        }
+      } else if (storedRole === 'GOVT') {
         const refreshRes = await api.post('/api/v1/govt/refresh');
         const newAccessToken = refreshRes.data.accessToken;
 
@@ -240,6 +326,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         industrySpoc: null,
         industryPartner: null,
         govtOfficer: null,
+        citizen: null,
         accessToken: null,
         isAuthenticated: false,
         isLoading: false,

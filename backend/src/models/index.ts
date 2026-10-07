@@ -9,3 +9,4 @@ export * from "./issue.js";
 export * from "./industryEnums.js";
 export * from "./industryPartner.js";
 export * from "./industrySpoc.js";
+export * from "./citizen.js";

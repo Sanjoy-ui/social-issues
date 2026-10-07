@@ -20,12 +20,6 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setErrorMessage(null);
 
-    // If citizen role is chosen, notify that Citizen portal is coming soon
-    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY' && role !== 'GOVT') {
-      setErrorMessage(`${role.charAt(0) + role.slice(1).toLowerCase()} portal authentication will be enabled soon. Please select 'University', 'Industry', or 'Govt Nodal'.`);
-      return;
-    }
-
     if (!email || !password) {
       setErrorMessage('Please fill in both your email address and password.');
       return;
@@ -34,7 +28,24 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (role === 'GOVT') {
+      if (role === 'CITIZEN') {
+        const response = await api.post('/api/v1/citizen/login', {
+          email,
+          password,
+        });
+
+        const { accessToken, data } = response.data;
+
+        // Update Zustand Auth Store for Citizen
+        setAuth({
+          role: 'CITIZEN',
+          citizen: data.citizen,
+          accessToken,
+        });
+
+        navigate('/citizen');
+        return;
+      } else if (role === 'GOVT') {
         const response = await api.post('/api/v1/govt/login', {
           email,
           password,
@@ -48,6 +59,8 @@ export const LoginPage: React.FC = () => {
           govtOfficer: data.officer,
           accessToken,
         });
+
+        navigate('/');
       } else if (role === 'INDUSTRY') {
         const response = await api.post('/api/v1/industry/login', {
           email,
@@ -63,6 +76,8 @@ export const LoginPage: React.FC = () => {
           industryPartner: data.partner,
           accessToken,
         });
+
+        navigate('/');
       } else {
         const response = await api.post('/api/v1/university/login', {
           universityEmail: email,
@@ -78,10 +93,9 @@ export const LoginPage: React.FC = () => {
           university: data.university,
           accessToken,
         });
-      }
 
-      // Redirect to home or dashboard
-      navigate('/');
+        navigate('/');
+      }
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||

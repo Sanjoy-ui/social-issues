@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSelector, type UserRole } from '../component/auth/RoleSelector.js';
 import { api } from '../services/api.js';
+import { useAuthStore } from '../store/authStore.js';
 
 const INDUSTRY_TYPES = [
   { value: 'corporate', label: 'Corporate Enterprise' },
@@ -53,11 +54,19 @@ const POPULAR_STATES = [
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   const [role, setRole] = useState<UserRole>('UNIVERSITY');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Citizen Form State
+  const [citizenFullName, setCitizenFullName] = useState('');
+  const [citizenEmail, setCitizenEmail] = useState('');
+  const [citizenPassword, setCitizenPassword] = useState('');
+  const [citizenConfirmPassword, setCitizenConfirmPassword] = useState('');
+  const [citizenPhone, setCitizenPhone] = useState('');
 
   // University Form State
   const [universityName, setUniversityName] = useState('');
@@ -149,17 +158,46 @@ export const RegisterPage: React.FC = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY' && role !== 'GOVT') {
-      setErrorMessage(
-        `${role.charAt(0) + role.slice(1).toLowerCase()} portal registration will be available soon. Please choose University, Industry, or Govt Nodal.`
-      );
-      return;
-    }
-
     setLoading(true);
 
     try {
-      if (role === 'GOVT') {
+      if (role === 'CITIZEN') {
+        if (citizenPassword.length < 6) {
+          setErrorMessage('Password must be at least 6 characters long.');
+          setLoading(false);
+          return;
+        }
+
+        if (citizenPassword !== citizenConfirmPassword) {
+          setErrorMessage('Passwords do not match. Please re-enter your password.');
+          setLoading(false);
+          return;
+        }
+
+        const payload = {
+          fullName: citizenFullName.trim(),
+          email: citizenEmail.trim().toLowerCase(),
+          password: citizenPassword,
+          phone: citizenPhone.trim() || undefined,
+        };
+
+        const response = await api.post('/api/v1/citizen/register', payload);
+        const { accessToken, data } = response.data;
+
+        // Auto-login to Zustand Auth Store
+        setAuth({
+          role: 'CITIZEN',
+          citizen: data.citizen,
+          accessToken,
+        });
+
+        setSuccessMessage(response.data.message || 'Citizen account registered successfully!');
+
+        setTimeout(() => {
+          navigate('/citizen');
+        }, 1200);
+        return;
+      } else if (role === 'GOVT') {
         const payload = {
           firstname: govtFirstname.trim(),
           lastname: govtLastname.trim(),
@@ -311,6 +349,8 @@ export const RegisterPage: React.FC = () => {
               ? 'District Nodal Officer Onboarding'
               : role === 'INDUSTRY'
               ? 'Industry Partner Onboarding'
+              : role === 'CITIZEN'
+              ? 'Citizen Account Registration'
               : 'Institutional Onboarding'}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
@@ -318,6 +358,8 @@ export const RegisterPage: React.FC = () => {
               ? 'Register the designated Nodal Authority for your district jurisdiction (strictly 1 per district)'
               : role === 'INDUSTRY'
               ? 'Connect your enterprise to fund, mentor, prototype, and scale civic solutions'
+              : role === 'CITIZEN'
+              ? 'Create your citizen profile to report local civic issues and track resolutions'
               : 'Register your university or partner with nodal authorities'}
           </p>
         </div>
@@ -331,7 +373,7 @@ export const RegisterPage: React.FC = () => {
             <svg className="w-4 h-4 text-green-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
-            <span>{successMessage} Redirecting to login...</span>
+            <span>{successMessage} {role === 'CITIZEN' ? 'Opening citizen dashboard...' : 'Redirecting to login...'}</span>
           </div>
         )}
 
@@ -719,6 +761,19 @@ export const RegisterPage: React.FC = () => {
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Official Contact Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={industryPhone}
+                    onChange={(e) => setIndustryPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1031,43 +1086,109 @@ export const RegisterPage: React.FC = () => {
             </button>
           </form>
         ) : (
-          /* ==================== PLACEHOLDER FOR CITIZEN ==================== */
-          <div className="p-8 text-center bg-gray-50 border border-gray-200/70 rounded-2xl">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.333A48.357 48.357 0 0012 9.75c-2.551 0-5.056.2-7.5.583V21" />
-              </svg>
+          /* ==================== CITIZEN REGISTRATION FORM ==================== */
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Section 1: Personal Information */}
+            <div className="bg-gray-50/70 p-5 rounded-xl border border-gray-200/60">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3">
+                Personal Information
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={citizenFullName}
+                    onChange={(e) => setCitizenFullName(e.target.value)}
+                    placeholder="e.g. Aarav Sharma"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={citizenEmail}
+                    onChange={(e) => setCitizenEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Phone Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={citizenPhone}
+                    onChange={(e) => setCitizenPhone(e.target.value)}
+                    placeholder="10-digit mobile number"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
             </div>
-            <h3 className="text-base font-bold text-gray-800">
-              Citizen Portal Onboarding
-            </h3>
-            <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
-              Citizen registration and grievance filing is coming soon. The University, Industry, and Govt Nodal portals are active right now.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
-              <button
-                type="button"
-                onClick={() => setRole('UNIVERSITY')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
-              >
-                University Portal
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('INDUSTRY')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
-              >
-                Industry Portal
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('GOVT')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
-              >
-                Govt Nodal Portal
-              </button>
+
+            {/* Section 2: Password & Security */}
+            <div className="bg-gray-50/70 p-5 rounded-xl border border-gray-200/60">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3">
+                Security & Password
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={citizenPassword}
+                    onChange={(e) => setCitizenPassword(e.target.value)}
+                    placeholder="Minimum 6 characters"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Confirm Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={citizenConfirmPassword}
+                    onChange={(e) => setCitizenConfirmPassword(e.target.value)}
+                    placeholder="Re-enter password"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-sm hover:shadow active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 text-sm"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>Creating Citizen Account...</span>
+                </>
+              ) : (
+                'Create Citizen Account'
+              )}
+            </button>
+          </form>
         )}
 
         {/* Existing Member Link */}
