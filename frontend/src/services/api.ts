@@ -52,7 +52,9 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/api/v1/university/login') &&
       !originalRequest.url?.includes('/api/v1/university/refresh') &&
       !originalRequest.url?.includes('/api/v1/industry/login') &&
-      !originalRequest.url?.includes('/api/v1/industry/refresh')
+      !originalRequest.url?.includes('/api/v1/industry/refresh') &&
+      !originalRequest.url?.includes('/api/v1/govt/login') &&
+      !originalRequest.url?.includes('/api/v1/govt/refresh')
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -71,7 +73,9 @@ api.interceptors.response.use(
       try {
         const currentRole = useAuthStore.getState().role || localStorage.getItem('civic_user_role');
         const refreshUrl =
-          currentRole === 'INDUSTRY'
+          currentRole === 'GOVT'
+            ? `${api.defaults.baseURL}/api/v1/govt/refresh`
+            : currentRole === 'INDUSTRY'
             ? `${api.defaults.baseURL}/api/v1/industry/refresh`
             : `${api.defaults.baseURL}/api/v1/university/refresh`;
 

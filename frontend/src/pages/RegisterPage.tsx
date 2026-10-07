@@ -31,6 +31,26 @@ const SUGGESTED_SECTORS = [
   'AgriTech',
 ];
 
+const POPULAR_STATES = [
+  'Andhra Pradesh',
+  'Assam',
+  'Bihar',
+  'Delhi (NCT)',
+  'Gujarat',
+  'Haryana',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Tamil Nadu',
+  'Telangana',
+  'Uttar Pradesh',
+  'West Bengal',
+];
+
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -45,26 +65,22 @@ export const RegisterPage: React.FC = () => {
   const [universityAddress, setUniversityAddress] = useState('');
   const [universityContactNo, setUniversityContactNo] = useState('');
   const [universityWebsiteLink, setUniversityWebsiteLink] = useState('');
-  const [departmentsInput, setDepartmentsInput] = useState('Computer Science, AI, Sustainable Tech');
+  const [departmentsInput, setDepartmentsInput] = useState('');
 
   // University SPOC State
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
   const [universityEmail, setUniversityEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [positionTitle, setPositionTitle] = useState('Nodal Officer / SPOC');
-  const [departmentSpoc, setDepartmentSpoc] = useState('R&D Cell');
+  const [positionTitle, setPositionTitle] = useState('');
+  const [departmentSpoc, setDepartmentSpoc] = useState('');
 
   // Industry Partner Form State
   const [industryName, setIndustryName] = useState('');
   const [industryType, setIndustryType] = useState<string>('corporate');
-  const [industrySectors, setIndustrySectors] = useState('Clean Energy, Urban Mobility, Waste Management');
-  const [selectedContributions, setSelectedContributions] = useState<string[]>([
-    'funding',
-    'mentorship',
-    'deployment',
-  ]);
-  const [industryDistricts, setIndustryDistricts] = useState('Bengaluru Urban, Pune, NCR');
+  const [industrySectors, setIndustrySectors] = useState('');
+  const [selectedContributions, setSelectedContributions] = useState<string[]>([]);
+  const [industryDistricts, setIndustryDistricts] = useState('');
   const [industryLocation, setIndustryLocation] = useState('');
   const [industryWebsite, setIndustryWebsite] = useState('');
   const [industryPhone, setIndustryPhone] = useState('');
@@ -75,14 +91,44 @@ export const RegisterPage: React.FC = () => {
   const [indSpocLastname, setIndSpocLastname] = useState('');
   const [indSpocEmail, setIndSpocEmail] = useState('');
   const [indSpocPassword, setIndSpocPassword] = useState('');
-  const [indSpocDesignation, setIndSpocDesignation] = useState('Head of CSR & Innovation');
+  const [indSpocDesignation, setIndSpocDesignation] = useState('');
   const [indSpocPhone, setIndSpocPhone] = useState('');
+
+  // Government Nodal Officer State
+  const [govtFirstname, setGovtFirstname] = useState('');
+  const [govtLastname, setGovtLastname] = useState('');
+  const [govtEmail, setGovtEmail] = useState('');
+  const [govtPassword, setGovtPassword] = useState('');
+  const [govtState, setGovtState] = useState('');
+  const [govtDistrict, setGovtDistrict] = useState('');
+  const [govtDepartment, setGovtDepartment] = useState('');
+  const [govtDesignation, setGovtDesignation] = useState('');
+  const [govtOfficeId, setGovtOfficeId] = useState('');
+  const [govtContactNo, setGovtContactNo] = useState('');
+  const [districtAvailable, setDistrictAvailable] = useState<boolean | null>(null);
+  const [checkingDistrict, setCheckingDistrict] = useState(false);
+
+  const checkDistrict = async (st: string, dist: string) => {
+    if (!st || !dist || dist.trim().length < 2) {
+      setDistrictAvailable(null);
+      return;
+    }
+    try {
+      setCheckingDistrict(true);
+      const res = await api.get(
+        `/api/v1/govt/check-district?state=${encodeURIComponent(st.trim())}&district=${encodeURIComponent(dist.trim())}`
+      );
+      setDistrictAvailable(res.data.data?.available ?? null);
+    } catch {
+      setDistrictAvailable(null);
+    } finally {
+      setCheckingDistrict(false);
+    }
+  };
 
   const toggleContribution = (id: string) => {
     if (selectedContributions.includes(id)) {
-      if (selectedContributions.length > 1) {
-        setSelectedContributions(selectedContributions.filter((c) => c !== id));
-      }
+      setSelectedContributions(selectedContributions.filter((c) => c !== id));
     } else {
       setSelectedContributions([...selectedContributions, id]);
     }
@@ -103,9 +149,9 @@ export const RegisterPage: React.FC = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY') {
+    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY' && role !== 'GOVT') {
       setErrorMessage(
-        `${role.charAt(0) + role.slice(1).toLowerCase()} portal registration will be available soon. Please choose University or Industry.`
+        `${role.charAt(0) + role.slice(1).toLowerCase()} portal registration will be available soon. Please choose University, Industry, or Govt Nodal.`
       );
       return;
     }
@@ -113,7 +159,27 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (role === 'INDUSTRY') {
+      if (role === 'GOVT') {
+        const payload = {
+          firstname: govtFirstname.trim(),
+          lastname: govtLastname.trim(),
+          email: govtEmail.trim().toLowerCase(),
+          password: govtPassword,
+          state: govtState.trim(),
+          district: govtDistrict.trim(),
+          department: govtDepartment.trim(),
+          designation: govtDesignation.trim(),
+          officeId: govtOfficeId.trim() || undefined,
+          contactNo: govtContactNo.trim(),
+        };
+
+        const response = await api.post('/api/v1/govt/register', payload);
+        setSuccessMessage(response.data.message || 'District Nodal Officer registered successfully!');
+
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+      } else if (role === 'INDUSTRY') {
         const sectorTags = industrySectors
           .split(',')
           .map((s) => s.trim())
@@ -241,10 +307,16 @@ export const RegisterPage: React.FC = () => {
             </span>
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
-            {role === 'INDUSTRY' ? 'Industry Partner Onboarding' : 'Institutional Onboarding'}
+            {role === 'GOVT'
+              ? 'District Nodal Officer Onboarding'
+              : role === 'INDUSTRY'
+              ? 'Industry Partner Onboarding'
+              : 'Institutional Onboarding'}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {role === 'INDUSTRY'
+            {role === 'GOVT'
+              ? 'Register the designated Nodal Authority for your district jurisdiction (strictly 1 per district)'
+              : role === 'INDUSTRY'
               ? 'Connect your enterprise to fund, mentor, prototype, and scale civic solutions'
               : 'Register your university or partner with nodal authorities'}
           </p>
@@ -273,7 +345,222 @@ export const RegisterPage: React.FC = () => {
           </div>
         )}
 
-        {role === 'INDUSTRY' ? (
+        {role === 'GOVT' ? (
+          /* ==================== GOVERNMENT DISTRICT NODAL FORM ==================== */
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Section 1: District Jurisdiction & Administrative Details */}
+            <div className="bg-gray-50/70 p-5 rounded-xl border border-gray-200/60">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                  Administrative Jurisdiction
+                </h2>
+                <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  1 Nodal Officer per District
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    State / UT *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    list="states-list"
+                    value={govtState}
+                    onChange={(e) => {
+                      setGovtState(e.target.value);
+                      checkDistrict(e.target.value, govtDistrict);
+                    }}
+                    placeholder="e.g. Karnataka"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                  <datalist id="states-list">
+                    {POPULAR_STATES.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    District Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govtDistrict}
+                    onChange={(e) => {
+                      setGovtDistrict(e.target.value);
+                      checkDistrict(govtState, e.target.value);
+                    }}
+                    placeholder="e.g. Bengaluru Urban / Pune"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                  {govtDistrict.trim().length >= 2 && (
+                    <div className="mt-1 text-[11px]">
+                      {checkingDistrict ? (
+                        <span className="text-gray-500">Checking district designation status...</span>
+                      ) : districtAvailable === true ? (
+                        <span className="text-green-600 font-medium flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          District available for designation
+                        </span>
+                      ) : districtAvailable === false ? (
+                        <span className="text-red-600 font-medium flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          District already assigned to another Nodal Officer
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Department / Administrative Body *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govtDepartment}
+                    onChange={(e) => setGovtDepartment(e.target.value)}
+                    placeholder="e.g. District Magistrate & Collectorate Office"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Official Designation *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govtDesignation}
+                    onChange={(e) => setGovtDesignation(e.target.value)}
+                    placeholder="e.g. Additional District Magistrate (ADM)"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Official Government Employee ID / Office Code (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={govtOfficeId}
+                    onChange={(e) => setGovtOfficeId(e.target.value)}
+                    placeholder="e.g. KA-GOV-2026-ADM01"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none uppercase"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Officer Credentials & Contact */}
+            <div className="bg-gray-50/70 p-5 rounded-xl border border-gray-200/60">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3">
+                Officer Credentials & Contact
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govtFirstname}
+                    onChange={(e) => setGovtFirstname(e.target.value)}
+                    placeholder="e.g. Suresh"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govtLastname}
+                    onChange={(e) => setGovtLastname(e.target.value)}
+                    placeholder="e.g. Kumar"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Official Government Email * (Login ID)
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={govtEmail}
+                    onChange={(e) => setGovtEmail(e.target.value)}
+                    placeholder="officer@karnataka.gov.in"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Password (Min 8 chars) *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={govtPassword}
+                    onChange={(e) => setGovtPassword(e.target.value)}
+                    placeholder="Create a strong password"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Official Contact Number * (Min 10 digits)
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={govtContactNo}
+                    onChange={(e) => setGovtContactNo(e.target.value)}
+                    placeholder="+91 9876543210"
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading || districtAvailable === false}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-sm hover:shadow active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 text-sm"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>Registering District Nodal Officer...</span>
+                </>
+              ) : (
+                'Complete District Nodal Registration'
+              )}
+            </button>
+          </form>
+        ) : role === 'INDUSTRY' ? (
           /* ==================== INDUSTRY PARTNER FORM ==================== */
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section 1: Company / Partner Information */}
@@ -651,7 +938,7 @@ export const RegisterPage: React.FC = () => {
                     required
                     value={firstname}
                     onChange={(e) => setFirstname(e.target.value)}
-                    placeholder="Dr. Rajesh"
+                    placeholder="e.g. Rajesh"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -665,7 +952,7 @@ export const RegisterPage: React.FC = () => {
                     required
                     value={lastname}
                     onChange={(e) => setLastname(e.target.value)}
-                    placeholder="Kumar"
+                    placeholder="e.g. Kumar"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -744,7 +1031,7 @@ export const RegisterPage: React.FC = () => {
             </button>
           </form>
         ) : (
-          /* ==================== PLACEHOLDER FOR GOVT & CITIZEN ==================== */
+          /* ==================== PLACEHOLDER FOR CITIZEN ==================== */
           <div className="p-8 text-center bg-gray-50 border border-gray-200/70 rounded-2xl">
             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -752,25 +1039,32 @@ export const RegisterPage: React.FC = () => {
               </svg>
             </div>
             <h3 className="text-base font-bold text-gray-800">
-              {role.charAt(0) + role.slice(1).toLowerCase()} Portal Onboarding
+              Citizen Portal Onboarding
             </h3>
             <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
-              Onboarding for {role.toLowerCase()} partners is coming soon. The University and Industry portals are active right now.
+              Citizen registration and grievance filing is coming soon. The University, Industry, and Govt Nodal portals are active right now.
             </p>
-            <div className="flex items-center justify-center gap-3 mt-5">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
               <button
                 type="button"
                 onClick={() => setRole('UNIVERSITY')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3.5 py-2 rounded-lg hover:shadow-sm transition-all cursor-pointer"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
               >
-                &larr; University Portal
+                University Portal
               </button>
               <button
                 type="button"
                 onClick={() => setRole('INDUSTRY')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3.5 py-2 rounded-lg hover:shadow-sm transition-all cursor-pointer"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
               >
-                Industry Portal &rarr;
+                Industry Portal
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('GOVT')}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-lg hover:shadow-sm transition-all cursor-pointer"
+              >
+                Govt Nodal Portal
               </button>
             </div>
           </div>

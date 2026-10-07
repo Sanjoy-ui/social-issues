@@ -51,12 +51,27 @@ export interface IndustryPartnerData {
   isActive?: boolean;
 }
 
+export interface GovtOfficerUser {
+  id: string;
+  firstname: string;
+  lastname: string;
+  email: string;
+  role: string;
+  state: string;
+  district: string;
+  department: string;
+  designation: string;
+  officeId?: string;
+  contactNo?: string;
+}
+
 interface AuthState {
   role: UserRole | null;
   spoc: SpocUser | null;
   university: UniversityData | null;
   industrySpoc: IndustrySpocUser | null;
   industryPartner: IndustryPartnerData | null;
+  govtOfficer: GovtOfficerUser | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -68,6 +83,7 @@ interface AuthState {
     university?: UniversityData | null;
     industrySpoc?: IndustrySpocUser | null;
     industryPartner?: IndustryPartnerData | null;
+    govtOfficer?: GovtOfficerUser | null;
     accessToken: string;
   }) => void;
   setAccessToken: (token: string) => void;
@@ -82,12 +98,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   university: null,
   industrySpoc: null,
   industryPartner: null,
+  govtOfficer: null,
   accessToken: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
 
-  setAuth: ({ role = 'UNIVERSITY', spoc = null, university = null, industrySpoc = null, industryPartner = null, accessToken }) => {
+  setAuth: ({
+    role = 'UNIVERSITY',
+    spoc = null,
+    university = null,
+    industrySpoc = null,
+    industryPartner = null,
+    govtOfficer = null,
+    accessToken,
+  }) => {
     localStorage.setItem('civic_user_role', role);
     set({
       role,
@@ -95,6 +120,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       university,
       industrySpoc,
       industryPartner,
+      govtOfficer,
       accessToken,
       isAuthenticated: true,
       isLoading: false,
@@ -109,7 +135,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     try {
       const currentRole = get().role || (localStorage.getItem('civic_user_role') as UserRole);
-      if (currentRole === 'INDUSTRY') {
+      if (currentRole === 'GOVT') {
+        await api.post('/api/v1/govt/logout');
+      } else if (currentRole === 'INDUSTRY') {
         await api.post('/api/v1/industry/logout');
       } else {
         await api.post('/api/v1/university/logout');
@@ -124,6 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         university: null,
         industrySpoc: null,
         industryPartner: null,
+        govtOfficer: null,
         accessToken: null,
         isAuthenticated: false,
         isLoading: false,
@@ -137,7 +166,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const storedRole = (localStorage.getItem('civic_user_role') as UserRole) || 'UNIVERSITY';
 
     try {
-      if (storedRole === 'INDUSTRY') {
+      if (storedRole === 'GOVT') {
+        const refreshRes = await api.post('/api/v1/govt/refresh');
+        const newAccessToken = refreshRes.data.accessToken;
+
+        if (newAccessToken) {
+          set({ accessToken: newAccessToken });
+
+          const profileRes = await api.get('/api/v1/govt/me', {
+            headers: { Authorization: `Bearer ${newAccessToken}` },
+          });
+
+          set({
+            role: 'GOVT',
+            govtOfficer: profileRes.data.data,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return true;
+        }
+      } else if (storedRole === 'INDUSTRY') {
         const refreshRes = await api.post('/api/v1/industry/refresh');
         const newAccessToken = refreshRes.data.accessToken;
 
@@ -190,6 +239,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         university: null,
         industrySpoc: null,
         industryPartner: null,
+        govtOfficer: null,
         accessToken: null,
         isAuthenticated: false,
         isLoading: false,

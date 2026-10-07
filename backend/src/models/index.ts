@@ -2,6 +2,7 @@ export * from "./company.js";
 export * from "./spoc.js";
 export * from "./university.js";
 export * from "./universitySpoc.js";
+export * from "./govtEnums.js";
 export * from "./govtNodal.js";
 export * from "./users.js";
 export * from "./issue.js";

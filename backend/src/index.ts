@@ -6,6 +6,7 @@ import { pool } from "./config/db.js";
 import { notFoundHandler } from "./middleware/notFound.js";
 import universityRoutes from "./routes/university.routes.js";
 import industryRoutes from "./routes/industry.routes.js";
+import govtNodalRoutes from "./routes/govtNodal.routes.js";
 
 dotenv.config();
 
@@ -86,6 +87,7 @@ app.post("/api/clear-cookie", (_req, res) => {
 // Mount API Routes
 app.use("/api/v1/university", universityRoutes);
 app.use("/api/v1/industry", industryRoutes);
+app.use("/api/v1/govt", govtNodalRoutes);
 
 // Middleware for unhandled routes (404 Not Found)
 app.use(notFoundHandler);

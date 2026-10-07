@@ -3,11 +3,13 @@ import { verifyAccessToken, type TokenPayload } from "../services/university.ser
 
 export type AuthUser = {
   spocID: string;
-  role: "UNIVERSITY_SPOC" | "INDUSTRY_SPOC" | string;
+  role: "UNIVERSITY_SPOC" | "INDUSTRY_SPOC" | "GOVT_NODAL" | string;
   email?: string;
   universityEmail?: string;
   universityID?: string;
   industryID?: string;
+  state?: string;
+  district?: string;
 };
 
 // Extend Express Request type to include authenticated user

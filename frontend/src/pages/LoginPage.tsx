@@ -20,9 +20,9 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setErrorMessage(null);
 
-    // If other roles are chosen, notify that University and Industry are currently active
-    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY') {
-      setErrorMessage(`${role.charAt(0) + role.slice(1).toLowerCase()} portal authentication will be enabled soon. Please select 'University' or 'Industry'.`);
+    // If citizen role is chosen, notify that Citizen portal is coming soon
+    if (role !== 'UNIVERSITY' && role !== 'INDUSTRY' && role !== 'GOVT') {
+      setErrorMessage(`${role.charAt(0) + role.slice(1).toLowerCase()} portal authentication will be enabled soon. Please select 'University', 'Industry', or 'Govt Nodal'.`);
       return;
     }
 
@@ -34,7 +34,21 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (role === 'INDUSTRY') {
+      if (role === 'GOVT') {
+        const response = await api.post('/api/v1/govt/login', {
+          email,
+          password,
+        });
+
+        const { accessToken, data } = response.data;
+
+        // Update Zustand Auth Store for Government
+        setAuth({
+          role: 'GOVT',
+          govtOfficer: data.officer,
+          accessToken,
+        });
+      } else if (role === 'INDUSTRY') {
         const response = await api.post('/api/v1/industry/login', {
           email,
           password,
@@ -142,6 +156,8 @@ export const LoginPage: React.FC = () => {
                 ? 'Institutional Email'
                 : role === 'INDUSTRY'
                 ? 'Corporate Email'
+                : role === 'GOVT'
+                ? 'Official Government Email'
                 : 'Email Address'}
             </label>
             <input
@@ -150,7 +166,9 @@ export const LoginPage: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={
-                role === 'INDUSTRY'
+                role === 'GOVT'
+                  ? 'officer@gov.in'
+                  : role === 'INDUSTRY'
                   ? 'spoc@company.com'
                   : role === 'UNIVERSITY'
                   ? 'name@organization.ac.in'

@@ -5,11 +5,11 @@ import './Navbar.css';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, spoc, university, industrySpoc, industryPartner, logout } = useAuthStore();
+  const { isAuthenticated, spoc, university, industrySpoc, industryPartner, govtOfficer, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const userName = spoc?.firstname || industrySpoc?.firstname || 'Account';
-  const orgName = university?.universityName || industryPartner?.name;
+  const userName = spoc?.firstname || industrySpoc?.firstname || govtOfficer?.firstname || 'Account';
+  const orgName = university?.universityName || industryPartner?.name || (govtOfficer ? `${govtOfficer.district} Nodal` : undefined);
 
   return (
     <header className="navbar-header">
