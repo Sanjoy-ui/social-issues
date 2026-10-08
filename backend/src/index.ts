@@ -9,6 +9,7 @@ import industryRoutes from "./routes/industry.routes.js";
 import govtNodalRoutes from "./routes/govtNodal.routes.js";
 import citizenRoutes from "./routes/citizen.routes.js";
 import issueRoutes from "./routes/issue.routes.js";
+import agentRoutes from "./routes/agent.routes.js";
 import { connectMongoDB } from "./config/mongo.js";
 
 dotenv.config();
@@ -93,6 +94,7 @@ app.use("/api/v1/industry", industryRoutes);
 app.use("/api/v1/govt", govtNodalRoutes);
 app.use("/api/v1/citizen", citizenRoutes);
 app.use("/api/v1/issue", issueRoutes);
+app.use("/api/v1/agent", agentRoutes);
 
 // Middleware for unhandled routes (404 Not Found)
 app.use(notFoundHandler);

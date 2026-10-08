@@ -14,6 +14,13 @@ export interface IIssue extends Document {
   annonymous: boolean;
   issue_fk?: string | null;
   status: "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
+  // Task 7 — Agent pipeline fields
+  agent_status: "pending" | "processing" | "gated_out" | "unassigned" | "clustered" | "failed";
+  embedding_generated: boolean;
+  is_researchable: boolean | null;
+  researchability_reasoning: string | null;
+  solution_domain: "tech" | "policy" | "infra" | "not_applicable" | null;
+  target_institution_type: "college" | "industry" | "both" | "none" | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -86,6 +93,35 @@ const IssueSchema: Schema<IIssue> = new Schema(
       enum: ["SUBMITTED", "ACKNOWLEDGED", "IN_PROGRESS", "RESOLVED", "REJECTED"],
       default: "SUBMITTED",
       index: true,
+    },
+    // ── Agent Pipeline Fields (Task 7) ───────────────────────────────────
+    agent_status: {
+      type: String,
+      enum: ["pending", "processing", "gated_out", "unassigned", "clustered", "failed"],
+      default: "pending",
+      index: true,
+    },
+    embedding_generated: {
+      type: Boolean,
+      default: false,
+    },
+    is_researchable: {
+      type: Boolean,
+      default: null,
+    },
+    researchability_reasoning: {
+      type: String,
+      default: null,
+    },
+    solution_domain: {
+      type: String,
+      enum: ["tech", "policy", "infra", "not_applicable", null],
+      default: null,
+    },
+    target_institution_type: {
+      type: String,
+      enum: ["college", "industry", "both", "none", null],
+      default: null,
     },
   },
   {

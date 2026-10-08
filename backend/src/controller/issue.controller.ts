@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { ZodError } from "zod";
 import { CreateIssueSchema } from "../dto/issue.dto.js";
 import * as issueService from "../services/issue.service.js";
+import { triggerAgentForIssue } from "../ai/index.js";
 
 /**
  * Controller: Register a new Civic Issue
@@ -22,6 +23,11 @@ export const handleRegisterIssue = async (req: Request, res: Response): Promise<
       : undefined;
 
     const newIssue = await issueService.registerIssue(validatedData, files, reporterContext);
+
+    // Trigger AI Agent pipeline asynchronously (non-blocking)
+    setImmediate(() => {
+      triggerAgentForIssue(newIssue);
+    });
 
     res.status(201).json({
       success: true,
