@@ -3,11 +3,13 @@ import { agentRuns } from "../../models/agentRun.js";
 import { Issue } from "../../models/issue.js";
 import { generateCompletion } from "../client/llm.client.js";
 import { agentConfig } from "../config/agent.config.js";
+import { sanitiseForPrompt } from "../../utils/pii.js";
 import {
   GATE_1_SYSTEM_PROMPT,
   buildGate1UserPrompt,
+  PROMPT_VERSION,
 } from "../prompts/gate1.prompt.js";
-import type { AgentState, Gate1Decision } from "../graph/state.js";
+import type { AgentState, Gate1Decision, ResearchScores, IndustryScores } from "../graph/state.js";
 
 interface ParsedGate1Output {
   is_researchable: boolean;
@@ -15,6 +17,21 @@ interface ParsedGate1Output {
   solution_domain: "tech" | "policy" | "infra" | "not_applicable";
   target_institution_type: "college" | "industry" | "both" | "none";
   suggested_category?: string;
+  research_scores?: {
+    novelty?: number;
+    measurability?: number;
+    data_availability?: number;
+    ethics_feasibility?: number;
+    significance?: number;
+  };
+  industry_scores?: {
+    payer?: number;
+    cost?: number;
+    market?: number;
+    feasibility?: number;
+    scalability?: number;
+  };
+  score_justification?: string;
 }
 
 /**
@@ -28,6 +45,7 @@ export async function gate1Node(
   state: AgentState
 ): Promise<Partial<AgentState>> {
   const issueId = state.issueId;
+  const runId = state.runId;
   const startTime = Date.now();
 
   try {
@@ -58,11 +76,12 @@ export async function gate1Node(
         /\.(jpeg|jpg|png|webp|gif)($|\?)/i.test(url)
     );
 
-    // 2. Invoke LLM classifier with structured JSON prompt and image proofs
+    // 2. FIX H2: Sanitise user-controlled strings before prompt interpolation
+    //    to prevent prompt-injection attacks via grievance text.
     const userPrompt = buildGate1UserPrompt({
-      title: issueTitle!,
-      description: issueDescription!,
-      address: issueAddress,
+      title: sanitiseForPrompt(issueTitle),
+      description: sanitiseForPrompt(issueDescription),
+      address: sanitiseForPrompt(issueAddress),
     });
 
     const rawResponse = await generateCompletion({
@@ -100,12 +119,18 @@ export async function gate1Node(
         combined.includes("dispute") ||
         combined.includes("bribe") ||
         combined.includes("stolen") ||
-        combined.includes("theft");
+        combined.includes("theft") ||
+        combined.includes("pothole") ||
+        combined.includes("broken road") ||
+        combined.includes("street light") ||
+        combined.includes("streetlight") ||
+        combined.includes("garbage") ||
+        combined.includes("trash");
 
       parsed = {
         is_researchable: !isGrievance,
         reasoning: isGrievance
-          ? "Identified as interpersonal grievance or non-researchable complaint."
+          ? "Identified as routine maintenance grievance or non-researchable complaint."
           : "Identified as civic engineering/technology research problem.",
         solution_domain: isGrievance ? "not_applicable" : "tech",
         target_institution_type: isGrievance ? "none" : "college",
@@ -126,6 +151,33 @@ export async function gate1Node(
         : isResearchable ? "both" : "none"
     ) as Gate1Decision["targetInstitutionType"];
 
+    // FIX M1: Extract structured 5+5 research & industry scores
+    const researchScores: ResearchScores | null = parsed.research_scores
+      ? {
+          novelty: Math.min(5, Math.max(1, Number(parsed.research_scores.novelty) || 3)),
+          measurability: Math.min(5, Math.max(1, Number(parsed.research_scores.measurability) || 3)),
+          dataAvailability: Math.min(5, Math.max(1, Number(parsed.research_scores.data_availability) || 3)),
+          ethicsFeasibility: Math.min(5, Math.max(1, Number(parsed.research_scores.ethics_feasibility) || 4)),
+          significance: Math.min(5, Math.max(1, Number(parsed.research_scores.significance) || 3)),
+        }
+      : isResearchable
+      ? { novelty: 3, measurability: 3, dataAvailability: 3, ethicsFeasibility: 4, significance: 3 }
+      : null;
+
+    const industryScores: IndustryScores | null = parsed.industry_scores
+      ? {
+          payer: Math.min(5, Math.max(1, Number(parsed.industry_scores.payer) || 3)),
+          cost: Math.min(5, Math.max(1, Number(parsed.industry_scores.cost) || 3)),
+          market: Math.min(5, Math.max(1, Number(parsed.industry_scores.market) || 3)),
+          feasibility: Math.min(5, Math.max(1, Number(parsed.industry_scores.feasibility) || 3)),
+          scalability: Math.min(5, Math.max(1, Number(parsed.industry_scores.scalability) || 3)),
+        }
+      : isResearchable
+      ? { payer: 3, cost: 3, market: 3, feasibility: 3, scalability: 3 }
+      : null;
+
+    const scoreJustification = parsed.score_justification || parsed.reasoning || null;
+
     const durationMs = Date.now() - startTime;
 
     // 4. Update MongoDB Issue record (Task 17)
@@ -142,17 +194,23 @@ export async function gate1Node(
       }
     );
 
-    // 5. Insert audit log row into Postgres agent_runs (Task 18)
+    // 5. Insert audit log row into Postgres agent_runs (Task 18 + FIX H8/M1/M9/M10)
     try {
       await db.insert(agentRuns).values({
+        runId,
         issueId,
         psId: null,
         gate1Result: isResearchable,
         gate1Reasoning: reasoning,
         gate2Case: !isResearchable ? "gated_out" : null,
+        gate2Decision: !isResearchable ? "VECTOR_ONLY" : null,
         reasoningSummary: `Gate 1: ${isResearchable ? "PASS" : "FAIL"} (${solutionDomain}/${targetInstitutionType}) — ${reasoning}`,
         modelUsed: agentConfig.nvidia.model,
+        promptVersion: PROMPT_VERSION,
+        researchScores: researchScores ? JSON.stringify(researchScores) : null,
+        industryScores: industryScores ? JSON.stringify(industryScores) : null,
         durationMs,
+        runLogs: `[${runId}][Gate1Node] Evaluated: ${isResearchable ? "PASS" : "FAIL"} (domain: ${solutionDomain}, target: ${targetInstitutionType})`,
       });
     } catch (dbErr: any) {
       console.error(
@@ -166,15 +224,18 @@ export async function gate1Node(
       reasoning,
       solutionDomain,
       targetInstitutionType,
+      researchScores,
+      industryScores,
+      scoreJustification,
     };
 
-    // 6. Return state update with early exit condition (Task 19)
+    // 6. Return state update with early exit condition
     if (!isResearchable) {
       return {
         gate1: gate1Decision,
         status: "gated_not_researchable",
         logs: [
-          `[Gate1Node] Issue ${issueId} GATED OUT as non-researchable: "${reasoning}" (domain: ${solutionDomain})`,
+          `[${runId}][Gate1Node] Issue ${issueId} → VECTOR_ONLY (gated out): "${reasoning}" (domain: ${solutionDomain})`,
         ],
       };
     }
@@ -182,7 +243,7 @@ export async function gate1Node(
     return {
       gate1: gate1Decision,
       logs: [
-        `[Gate1Node] Issue ${issueId} PASSED Gate 1: "${reasoning}" (domain: ${solutionDomain}, target: ${targetInstitutionType})`,
+        `[${runId}][Gate1Node] Issue ${issueId} PASSED Gate 1: "${reasoning}" (domain: ${solutionDomain}, target: ${targetInstitutionType})`,
       ],
     };
   } catch (err: any) {
@@ -192,7 +253,7 @@ export async function gate1Node(
     return {
       status: "failed",
       error: `[Gate1Node] ${errorMsg}`,
-      logs: [`[Gate1Node] Error evaluating solvability: ${errorMsg}`],
+      logs: [`[${runId}][Gate1Node] Error evaluating solvability: ${errorMsg}`],
     };
   }
 }

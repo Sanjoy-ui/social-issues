@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   real,
+  boolean,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -26,8 +27,9 @@ export const vector = customType<{ data: number[]; driverData: string }>({
 });
 
 /**
- * Task 2: issue_embeddings
+ * issue_embeddings
  * Stores pgvector embeddings for each civic issue (1024-dim NVIDIA NIM)
+ * FIX M4: Added severity, issueStatus, createdAtTs columns
  */
 export const issueEmbeddings = pgTable("issue_embeddings", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -36,6 +38,10 @@ export const issueEmbeddings = pgTable("issue_embeddings", {
   category: text("category"),
   geoLat: real("geo_lat"),
   geoLng: real("geo_lng"),
+  // FIX M4: additional metadata for context computation
+  severity: text("severity"),
+  issueStatus: text("issue_status"),
+  createdAtTs: timestamp("created_at_ts"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

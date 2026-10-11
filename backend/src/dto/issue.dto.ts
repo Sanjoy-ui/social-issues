@@ -33,6 +33,10 @@ export const CreateIssueSchema = z.object({
     .union([z.boolean(), z.string()])
     .optional()
     .transform((val) => val === true || val === "true" || val === "1"),
+  anonymous: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => val === true || val === "true" || val === "1"),
   issue_fk: z
     .string()
     .trim()

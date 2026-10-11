@@ -12,6 +12,7 @@ export interface IIssue extends Document {
   issue_description: string;
   issue_proof: string[];
   annonymous: boolean;
+  anonymous?: boolean;
   issue_fk?: string | null;
   status: "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
   // Task 7 — Agent pipeline fields
@@ -80,6 +81,10 @@ const IssueSchema: Schema<IIssue> = new Schema(
       default: [],
     },
     annonymous: {
+      type: Boolean,
+      default: false,
+    },
+    anonymous: {
       type: Boolean,
       default: false,
     },

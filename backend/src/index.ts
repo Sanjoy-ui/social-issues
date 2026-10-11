@@ -11,6 +11,7 @@ import citizenRoutes from "./routes/citizen.routes.js";
 import issueRoutes from "./routes/issue.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import { connectMongoDB } from "./config/mongo.js";
+import { startAgentQueue, stopAgentQueue } from "./ai/index.js";
 
 dotenv.config();
 
@@ -104,6 +105,10 @@ app.listen(PORT, async () => {
   
   // Initialize MongoDB connection via Mongoose
   await connectMongoDB();
+
+  // Initialize and start persistent AI Agent Queue & monitor
+  await startAgentQueue();
+
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "citizens" (
@@ -127,3 +132,13 @@ app.listen(PORT, async () => {
     console.error("Database initialization notice:", error);
   }
 });
+
+// Graceful shutdown
+const handleShutdown = async (signal: string) => {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+  await stopAgentQueue();
+  process.exit(0);
+};
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));

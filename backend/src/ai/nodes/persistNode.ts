@@ -8,13 +8,19 @@ import type { AgentState } from "../graph/state.js";
  * - Case A: Links issue to existing PS + increments evidence_count
  * - Case B/E: Creates new problem_statements row + ps_embeddings + ps_issue_links (or merges if dedup matched)
  * - Case C: Marks MongoDB issue agent_status = 'unassigned'
- * - Records full execution audit trail into Postgres agent_runs
+ * - FIX H8: Records run_id in final agent_runs row for end-to-end tracing
+ * - FIX H3: Persists urgent_escalation flag on problem_statement
+ * - FIX M2: Persists track (RESEARCH / INDUSTRY / HYBRID)
+ * - FIX M10: Persists full state.logs[] to agent_runs.run_logs
  * - Emits Postgres NOTIFY ps_events for real-time SSE dispatch
+ * - FIX M5: Agent_runs insert is the FINAL row for this run — Gate 1/Gate 2 audit rows
+ *   use the same run_id so all rows for one invocation are grouped.
  */
 export async function persistNode(
   state: AgentState
 ): Promise<Partial<AgentState>> {
   const issueId = state.issueId;
+  const runId = state.runId;
   const startTime = Date.now();
   const caseDecision = state.gate2?.caseDecision || "C";
   const client = await pool.connect();
@@ -61,8 +67,9 @@ export async function persistNode(
         { $set: { agent_status: "clustered" } }
       );
 
-      // 4. Emit Postgres NOTIFY (Task 46)
+      // 4. Emit Postgres NOTIFY
       const notifyPayload = JSON.stringify({
+        run_id: runId,
         ps_id: finalPsId,
         type: "updated",
         issue_id: issueId,
@@ -70,13 +77,14 @@ export async function persistNode(
       });
       await client.query(`SELECT pg_notify('ps_events', $1)`, [notifyPayload]);
 
-      actionTaken = `Linked issue ${issueId} to existing Problem Statement ${finalPsId} (evidence count incremented)`;
+      actionTaken = `Linked issue ${issueId} to existing PS ${finalPsId} (evidence count incremented)`;
     }
 
-    // ── CASE B / CASE E: Create New Problem Statement (Task 43) ──────────────
+    // ── CASE B / CASE E: Create New Problem Statement ─────────────────────────
     else if ((caseDecision === "B" || caseDecision === "E") && state.problemStatement) {
       const ps = state.problemStatement;
       const evidenceIds = state.gate2?.evidenceIssueIds || [issueId];
+      const isUrgent = state.urgentEscalation || state.gate2?.urgentEscalation || false;
 
       // 1. Insert into problem_statements
       const insertPsRes = await client.query(
@@ -91,9 +99,11 @@ export async function persistNode(
           affected_area,
           solution_domain,
           target_institution_type,
+          track,
+          urgent_escalation,
           version
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
         `,
         [
@@ -106,6 +116,8 @@ export async function persistNode(
           ps.affectedArea || null,
           ps.solutionDomain,
           ps.targetInstitutionType,
+          ps.track,          // FIX M2
+          isUrgent,          // FIX H3
           1,
         ]
       );
@@ -124,7 +136,7 @@ export async function persistNode(
         );
       }
 
-      // 3. Insert into ps_issue_links for all contributing evidence issues
+      // 3. Insert ps_issue_links for all contributing evidence issues
       for (const eId of evidenceIds) {
         await client.query(
           `
@@ -142,64 +154,104 @@ export async function persistNode(
         { $set: { agent_status: "clustered" } }
       );
 
-      // 5. Emit Postgres NOTIFY for new Problem Statement (Task 46)
+      // 5. Emit Postgres NOTIFY for new Problem Statement
       const notifyPayload = JSON.stringify({
+        run_id: runId,
         ps_id: finalPsId,
         type: "created",
         title: ps.title,
         category: ps.category,
+        track: ps.track,
+        urgent_escalation: isUrgent,
         evidence_count: ps.evidenceCount,
         timestamp: new Date().toISOString(),
       });
       await client.query(`SELECT pg_notify('ps_events', $1)`, [notifyPayload]);
 
-      actionTaken = `Created Problem Statement "${ps.title}" (ID: ${finalPsId}) backed by ${evidenceIds.length} evidence issues`;
+      actionTaken = `Created PS "${ps.title}" (ID: ${finalPsId}) backed by ${evidenceIds.length} evidence issues. Track: ${ps.track}. Urgent: ${isUrgent}`;
     }
 
-    // ── CASE C: Unassigned Wait (Task 44) ───────────────────────────────────
+    // ── CASE C: WATCHLIST (Unassigned Wait) ───────────────────────────────────
     else {
-      // Ensure MongoDB status is 'unassigned'
       await Issue.updateOne(
         { id: issueId },
         { $set: { agent_status: "unassigned" } }
       );
-
-      actionTaken = `Issue ${issueId} confirmed as 'unassigned' (insufficient cluster evidence)`;
+      actionTaken = `Issue ${issueId} confirmed as WATCHLIST/unassigned (insufficient cluster evidence)`;
     }
 
-    // ── FINAL AUDIT RUN LOGGING (Task 45) ────────────────────────────────────
+    // ── FINAL AUDIT RUN LOGGING (FIX M5: Idempotent run logging) ───────────────
     const durationMs = Date.now() - startTime;
-    await client.query(
-      `
-      INSERT INTO agent_runs (
-        issue_id,
-        ps_id,
-        gate1_result,
-        gate1_reasoning,
-        gate2_case,
-        reasoning_summary,
-        model_used,
-        duration_ms
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `,
-      [
-        issueId,
-        finalPsId,
-        state.gate1?.isResearchable ?? true,
-        state.gate1?.reasoning ?? null,
-        caseDecision,
-        `Final Pipeline Outcome [Case ${caseDecision}]: ${actionTaken}`,
-        agentConfig.nvidia.model,
-        durationMs,
-      ]
+    const runLogs = (state.logs || []).join("\n");
+    const summaryText = `Final Pipeline Outcome [${state.gate2?.decision || caseDecision}]: ${actionTaken}`;
+
+    const existingRun = await client.query(
+      `SELECT id FROM agent_runs WHERE run_id = $1 LIMIT 1`,
+      [runId]
     );
+
+    if (existingRun.rows.length > 0) {
+      await client.query(
+        `
+        UPDATE agent_runs
+        SET
+          ps_id = $2,
+          gate2_case = $3,
+          gate2_decision = $4,
+          reasoning_summary = $5,
+          duration_ms = $6,
+          run_logs = $7
+        WHERE run_id = $1
+        `,
+        [
+          runId,
+          finalPsId,
+          caseDecision,
+          state.gate2?.decision ?? caseDecision,
+          summaryText,
+          durationMs,
+          runLogs,
+        ]
+      );
+    } else {
+      await client.query(
+        `
+        INSERT INTO agent_runs (
+          run_id,
+          issue_id,
+          ps_id,
+          gate1_result,
+          gate1_reasoning,
+          gate2_case,
+          gate2_decision,
+          reasoning_summary,
+          model_used,
+          duration_ms,
+          run_logs
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `,
+        [
+          runId,
+          issueId,
+          finalPsId,
+          state.gate1?.isResearchable ?? true,
+          state.gate1?.reasoning ?? null,
+          caseDecision,
+          state.gate2?.decision ?? caseDecision,
+          summaryText,
+          agentConfig.nvidia.model,
+          durationMs,
+          runLogs,
+        ]
+      );
+    }
 
     await client.query("COMMIT");
 
     return {
       status: "persisted",
-      logs: [`[PersistNode] ${actionTaken}`],
+      logs: [`[${runId}][PersistNode] ${actionTaken}`],
     };
   } catch (err: any) {
     await client.query("ROLLBACK");
@@ -209,7 +261,7 @@ export async function persistNode(
     return {
       status: "failed",
       error: `[PersistNode] ${errorMsg}`,
-      logs: [`[PersistNode] Failed to persist outcome: ${errorMsg}`],
+      logs: [`[${runId}][PersistNode] Failed to persist outcome: ${errorMsg}`],
     };
   } finally {
     client.release();

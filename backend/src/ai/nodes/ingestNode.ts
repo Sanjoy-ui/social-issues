@@ -2,12 +2,14 @@ import { db } from "../../config/db.js";
 import { issueEmbeddings } from "../../models/issueEmbedding.js";
 import { Issue } from "../../models/issue.js";
 import { generateEmbedding } from "../client/llm.client.js";
+import { stripPii } from "../../utils/pii.js";
 import type { AgentState, IssueContext } from "../graph/state.js";
 
 /**
  * Node 1: Ingest Issue
  * - Fetches issue details from MongoDB by issueId
  * - Updates issue agent_status to 'processing'
+ * - FIX H1: Strips PII from text BEFORE embedding
  * - Generates dense vector embedding (1024-dim) via NVIDIA NIM
  * - Upserts embedding and geo metadata into Postgres issue_embeddings table
  * - Updates MongoDB issue embedding_generated = true
@@ -16,12 +18,13 @@ export async function ingestNode(
   state: AgentState
 ): Promise<Partial<AgentState>> {
   const issueId = state.issueId;
+  const runId = state.runId;
 
   if (!issueId) {
     return {
       status: "failed",
       error: "[IngestNode] Missing issueId in state",
-      logs: ["[IngestNode] Error: No issueId provided"],
+      logs: [`[${runId}][IngestNode] Error: No issueId provided`],
     };
   }
 
@@ -32,7 +35,7 @@ export async function ingestNode(
       return {
         status: "failed",
         error: `[IngestNode] Issue not found in MongoDB with id: ${issueId}`,
-        logs: [`[IngestNode] Error: Issue ${issueId} not found in database`],
+        logs: [`[${runId}][IngestNode] Error: Issue ${issueId} not found in database`],
       };
     }
 
@@ -45,11 +48,12 @@ export async function ingestNode(
     const geoLat = latStr ? parseFloat(latStr) : null;
     const geoLng = lngStr ? parseFloat(lngStr) : null;
 
-    // Build text representation for embedding
+    // FIX H1: Strip PII before embedding. Do NOT include email/username/citizen_id
+    // in the embedded text — those are stored only in MongoDB under access controls.
     const textToEmbed = [
-      `Title: ${title}`,
-      `Description: ${description}`,
-      address ? `Location: ${address}` : "",
+      `Title: ${stripPii(title)}`,
+      `Description: ${stripPii(description)}`,
+      address ? `Location: ${stripPii(address)}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -66,6 +70,10 @@ export async function ingestNode(
         category: (issueDoc as any).category || null,
         geoLat: !isNaN(geoLat as number) ? geoLat : null,
         geoLng: !isNaN(geoLng as number) ? geoLng : null,
+        // M4 additions
+        severity: (issueDoc as any).severity_flag || (issueDoc as any).severity || null,
+        issueStatus: issueDoc.status || null,
+        createdAtTs: issueDoc.createdAt || new Date(),
       })
       .onConflictDoUpdate({
         target: issueEmbeddings.issueId,
@@ -94,7 +102,7 @@ export async function ingestNode(
       issue: issueContext,
       status: "ingested",
       logs: [
-        `[IngestNode] Issue ${issueId} fetched from MongoDB, generated 1024-dim embedding, and indexed in Postgres issue_embeddings`,
+        `[${runId}][IngestNode] Issue ${issueId} fetched from MongoDB, PII stripped, generated 1024-dim embedding, and indexed in Postgres issue_embeddings`,
       ],
     };
   } catch (error: any) {
@@ -109,10 +117,16 @@ export async function ingestNode(
       );
     } catch (_) {}
 
+    // FIX M8: Log to console prominently — a dead-letter table would be the
+    // production solution but we emit a structured error log here for now.
+    console.error(
+      `💀 [IngestNode][DEAD-LETTER] issue=${issueId} runId=${runId} error=${errorMsg}`
+    );
+
     return {
       status: "failed",
       error: `[IngestNode] ${errorMsg}`,
-      logs: [`[IngestNode] Error processing issue ${issueId}: ${errorMsg}`],
+      logs: [`[${runId}][IngestNode] Error processing issue ${issueId}: ${errorMsg}`],
     };
   }
 }

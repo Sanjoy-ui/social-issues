@@ -39,7 +39,7 @@ export const registerIssue = async (
   const issueId = `ISSUE-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 
   // 3. Resolve user details and handle anonymity
-  const isAnonymous = Boolean(data.annonymous);
+  const isAnonymous = Boolean(data.anonymous ?? data.annonymous);
   const username = isAnonymous
     ? "Anonymous Citizen"
     : reporter?.fullName || "Citizen Reporter";
@@ -59,6 +59,7 @@ export const registerIssue = async (
     issue_description: data.issue_description.trim(),
     issue_proof: issueProofUrls,
     annonymous: isAnonymous,
+    anonymous: isAnonymous,
     issue_fk: data.issue_fk || null,
     status: "SUBMITTED",
   });

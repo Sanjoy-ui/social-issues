@@ -4,3 +4,4 @@ export * from "./graph/state.js";
 export * from "./graph/agent.graph.js";
 export * from "./services/agentHealth.service.js";
 export * from "./services/agentRunner.service.js";
+export * from "./services/agentQueue.service.js";

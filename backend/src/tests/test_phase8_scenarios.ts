@@ -178,8 +178,9 @@ async function runPhase8Verification() {
   const createdPs = psRes.rows[0];
 
   let linksCount = 0;
+  let linksRes: any = { rows: [] };
   if (createdPs) {
-    const linksRes = await pool.query(
+    linksRes = await pool.query(
       "SELECT issue_id FROM ps_issue_links WHERE ps_id = $1",
       [createdPs.id]
     );
