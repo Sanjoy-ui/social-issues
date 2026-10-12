@@ -1,8 +1,10 @@
 import React from 'react';
 import landingRightImg from '../assets/landing-right-img.png';
 import './HeroSection.css';
+import { useNavigate } from 'react-router-dom';
 
 export const HeroSection: React.FC = () => {
+  const navigate = useNavigate();
   return (
     <section className="hero-section" aria-labelledby="hero-heading">
       <div className="hero-container">
@@ -24,7 +26,9 @@ export const HeroSection: React.FC = () => {
           </p>
 
           <div className="hero-actions">
-            <button type="button" className="btn btn-primary hero-btn" onClick={() => {}}>
+            <button type="button" className="btn btn-primary hero-btn" onClick={() => {
+              navigate("/login")
+            }}>
               Get Started
             </button>
             <button type="button" className="btn btn-dark hero-btn" onClick={() => {}}>

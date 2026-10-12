@@ -6,19 +6,27 @@ import {
   handleLogout,
   handleGetProfile,
   handleCheckDistrict,
+  handleGetTripuraDistricts,
+  handleGetProblemStatements,
+  handleGetHigherEducation,
+  handleGetIndustries,
 } from "../controller/govtNodal.controller.js";
-import { requireAuth } from "../middleware/auth.middleware.js";
+import { requireAuth, optionalAuth } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-// Public routes
+// Public / General routes
 router.post("/register", handleRegister);
 router.post("/login", handleLogin);
 router.post("/refresh", handleRefreshToken);
 router.get("/check-district", handleCheckDistrict);
+router.get("/districts", handleGetTripuraDistricts);
+router.get("/problem-statements", requireAuth, handleGetProblemStatements);
+router.get("/higher-education", requireAuth, handleGetHigherEducation);
+router.get("/industries", requireAuth, handleGetIndustries);
 
-// Protected routes (Require valid access token)
-router.post("/logout", requireAuth, handleLogout);
+// Protected / Session routes
+router.post("/logout", optionalAuth, handleLogout);
 router.get("/me", requireAuth, handleGetProfile);
 
 export default router;

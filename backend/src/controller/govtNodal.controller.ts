@@ -217,3 +217,118 @@ export const handleCheckDistrict = async (req: Request, res: Response): Promise<
     });
   }
 };
+
+/**
+ * Controller: Get All Tripura Districts with Availability Status
+ * GET /api/v1/govt/districts
+ */
+export const handleGetTripuraDistricts = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const districts = await govtNodalService.getTripuraDistrictsStatus();
+    res.status(200).json({
+      success: true,
+      data: {
+        state: "Tripura",
+        totalDistricts: districts.length,
+        districts,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch Tripura districts",
+    });
+  }
+};
+
+/**
+ * Controller: Get Paginated Problem Statements
+ * GET /api/v1/govt/problem-statements
+ */
+export const handleGetProblemStatements = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 6));
+    const status = (req.query.status as string) || undefined;
+    const category = (req.query.category as string) || undefined;
+    const district = (req.query.district as string) || undefined;
+
+    const result = await govtNodalService.getPaginatedProblemStatements({
+      page,
+      limit,
+      status,
+      category,
+      district,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch problem statements",
+    });
+  }
+};
+
+/**
+ * Controller: Get Registered Higher Education Institutions
+ * GET /api/v1/govt/higher-education
+ */
+export const handleGetHigherEducation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 6));
+    const search = (req.query.search as string) || undefined;
+
+    const result = await govtNodalService.getHigherEducationInstitutions({
+      page,
+      limit,
+      search,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch higher education institutions",
+    });
+  }
+};
+
+/**
+ * Controller: Get Registered Industry Partners & Companies
+ * GET /api/v1/govt/industries
+ */
+export const handleGetIndustries = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 6));
+    const search = (req.query.search as string) || undefined;
+    const type = (req.query.type as string) || undefined;
+
+    const result = await govtNodalService.getIndustryPartners({
+      page,
+      limit,
+      search,
+      type,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch industry partners",
+    });
+  }
+};
+
+

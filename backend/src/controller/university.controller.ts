@@ -173,3 +173,195 @@ export const handleGetProfile = async (req: Request, res: Response): Promise<voi
     });
   }
 };
+
+/**
+ * Controller: Get Available (Unclaimed) Problem Statements
+ * GET /api/v1/university/problem-statements
+ */
+export const handleGetAvailableProblemStatements = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 6;
+
+    const result = await universityService.getAvailableProblemStatements({ page, limit });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch available problem statements",
+    });
+  }
+};
+
+/**
+ * Controller: Claim Problem Statement for Research
+ * POST /api/v1/university/problem-statements/:id/claim
+ */
+export const handleClaimProblemStatement = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const psId = req.params.id as string;
+    const universityId = req.user?.universityID;
+    const spocId = req.user?.spocID;
+
+    if (!universityId || !spocId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Institution or SPOC credentials missing in token.",
+      });
+      return;
+    }
+
+    if (!psId) {
+      res.status(400).json({
+        success: false,
+        message: "Problem statement ID is required.",
+      });
+      return;
+    }
+
+    const claimed = await universityService.claimProblemStatement(psId, universityId, spocId);
+
+    res.status(200).json({
+      success: true,
+      message: "Problem statement claimed successfully for academic research.",
+      data: claimed,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to claim problem statement",
+    });
+  }
+};
+
+/**
+ * Controller: Get Problem Statements Claimed by Current University (Assigned Projects)
+ * GET /api/v1/university/assigned-projects
+ */
+export const handleGetAssignedProjects = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const universityId = req.user?.universityID;
+
+    if (!universityId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Institution ID not identified.",
+      });
+      return;
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 6;
+
+    const result = await universityService.getAssignedProjects(universityId, { page, limit });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch assigned projects",
+    });
+  }
+};
+
+/**
+ * Controller: Get Industry Proposals received by College
+ * GET /api/v1/university/industry-proposals
+ */
+export const handleGetUniversityProposals = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const universityId = req.user?.universityID;
+
+    if (!universityId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Institution ID not identified.",
+      });
+      return;
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const status = req.query.status as string | undefined;
+
+    const result = await universityService.getUniversityProposals(universityId, {
+      page,
+      limit,
+      status,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch industry proposals",
+    });
+  }
+};
+
+/**
+ * Controller: Review (Accept/Reject) an Industry Proposal
+ * PATCH /api/v1/university/industry-proposals/:id/review
+ */
+export const handleReviewProposal = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const proposalId = req.params.id as string;
+    const universityId = req.user?.universityID;
+    const spocId = req.user?.spocID;
+
+    if (!universityId || !spocId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Institution or SPOC credentials missing in token.",
+      });
+      return;
+    }
+
+    const { status, feedback } = req.body;
+
+    if (status !== "accepted" && status !== "rejected") {
+      res.status(400).json({
+        success: false,
+        message: "Invalid status. Must be 'accepted' or 'rejected'.",
+      });
+      return;
+    }
+
+    const updated = await universityService.reviewIndustryProposal(
+      proposalId,
+      universityId,
+      spocId,
+      status,
+      feedback
+    );
+
+    res.status(200).json({
+      success: true,
+      message:
+        status === "accepted"
+          ? "Proposal accepted! Industry and University can now collaborate on this research challenge."
+          : "Proposal declined.",
+      data: updated,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to review proposal",
+    });
+  }
+};

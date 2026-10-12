@@ -1,7 +1,18 @@
 import { z } from "zod";
 
+export const TRIPURA_DISTRICTS = [
+  "Dhalai",
+  "Gomati",
+  "Khowai",
+  "North Tripura",
+  "Sepahijala",
+  "South Tripura",
+  "Unakoti",
+  "West Tripura",
+] as const;
+
 /**
- * Validation schema for District Nodal Officer Registration
+ * Validation schema for District Nodal Officer Registration (Strictly Tripura Jurisdiction)
  */
 export const RegisterGovtNodalSchema = z.object({
   firstname: z
@@ -18,7 +29,8 @@ export const RegisterGovtNodalSchema = z.object({
     .min(8, "Password must be at least 8 characters long"),
   state: z
     .string()
-    .min(2, "State name is required"),
+    .min(2, "State name is required")
+    .default("Tripura"),
   district: z
     .string()
     .min(2, "District name is required"),

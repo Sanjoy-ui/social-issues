@@ -187,3 +187,126 @@ export const handleGetProfile = async (req: Request, res: Response): Promise<voi
     });
   }
 };
+
+/**
+ * Controller: Get Higher Education Active Projects for Industry Collaboration
+ * GET /api/v1/industry/he-active-projects
+ */
+export const handleGetHeActiveProjects = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 6;
+    const search = req.query.search as string | undefined;
+    const category = req.query.category as string | undefined;
+
+    const result = await industryService.getHigherEducationActiveProjects({
+      page,
+      limit,
+      search,
+      category,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch Higher Education active projects",
+    });
+  }
+};
+
+/**
+ * Controller: Submit Solution Proposal to Higher Education Institution
+ * POST /api/v1/industry/proposals
+ */
+export const handleCreateProposal = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const industryID = req.user?.industryID;
+    const spocID = req.user?.spocID;
+
+    if (!industryID || !spocID) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Industry credentials not found in session.",
+      });
+      return;
+    }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        message: "Proposal document file (PDF or DOC) is required.",
+      });
+      return;
+    }
+
+    const {
+      problemStatementId,
+      proposalTitle,
+      proposalSummary,
+      contributionType,
+      estimatedTimeline,
+    } = req.body;
+
+    const proposal = await industryService.createIndustryProposal(
+      industryID,
+      spocID,
+      {
+        problemStatementId,
+        proposalTitle,
+        proposalSummary,
+        contributionType,
+        estimatedTimeline,
+      },
+      file
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Solution proposal submitted successfully to the academic institution.",
+      data: proposal,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to submit proposal",
+    });
+  }
+};
+
+/**
+ * Controller: Get Proposals Submitted by Logged-in Industry Partner
+ * GET /api/v1/industry/my-proposals
+ */
+export const handleGetIndustryProposals = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const industryID = req.user?.industryID;
+
+    if (!industryID) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized. Industry ID not identified.",
+      });
+      return;
+    }
+
+    const proposals = await industryService.getIndustryProposals(industryID);
+
+    res.status(200).json({
+      success: true,
+      data: proposals,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch industry proposals",
+    });
+  }
+};

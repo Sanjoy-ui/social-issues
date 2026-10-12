@@ -60,7 +60,7 @@ export const LoginPage: React.FC = () => {
           accessToken,
         });
 
-        navigate('/');
+        navigate('/govt');
       } else if (role === 'INDUSTRY') {
         const response = await api.post('/api/v1/industry/login', {
           email,
@@ -94,7 +94,7 @@ export const LoginPage: React.FC = () => {
           accessToken,
         });
 
-        navigate('/');
+        navigate('/university');
       }
     } catch (err: any) {
       const msg =
@@ -181,7 +181,7 @@ export const LoginPage: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder={
                 role === 'GOVT'
-                  ? 'officer@gov.in'
+                  ? 'officer@tripura.gov.in'
                   : role === 'INDUSTRY'
                   ? 'spoc@company.com'
                   : role === 'UNIVERSITY'

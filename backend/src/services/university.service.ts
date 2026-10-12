@@ -1,8 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, desc, isNull, ne, sql } from "drizzle-orm";
 import { db } from "../config/db.js";
-import { university, universitySpoc } from "../models/index.js";
+import {
+  university,
+  universitySpoc,
+  problemStatements,
+  industryProposals,
+  industryPartners,
+  industrySpoc,
+} from "../models/index.js";
 import type { OnboardUniversityDTO, LoginUniversityDTO } from "../dto/university.dto.js";
 
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "access_secret_civic_resolve_2026";
@@ -277,4 +284,292 @@ export const getUniversityProfile = async (spocID: string) => {
     spoc: safeSpoc,
     university: univ,
   };
+};
+
+export interface AvailableProblemStatementsOptions {
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Service: Fetch Available (Unclaimed) Problem Statements for Universities
+ */
+export const getAvailableProblemStatements = async (options: AvailableProblemStatementsOptions = {}) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 6));
+  const offset = (page - 1) * limit;
+
+  // Only open problem statements that have NOT been claimed by any institution
+  const whereCondition = and(
+    isNull(problemStatements.claimedByUniversityId),
+    ne(problemStatements.status, "claimed"),
+    ne(problemStatements.status, "assigned")
+  );
+
+  // Total matching count
+  const countRes = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(problemStatements)
+    .where(whereCondition);
+
+  const total = countRes[0]?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // Paginated rows ordered by createdAt DESC
+  const items = await db
+    .select()
+    .from(problemStatements)
+    .where(whereCondition)
+    .orderBy(desc(problemStatements.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+/**
+ * Service: Claim a Problem Statement for Research (Single-Institution Exclusivity)
+ */
+export const claimProblemStatement = async (
+  psId: string,
+  universityId: string,
+  spocId: string
+) => {
+  // 1. Atomic update where claimedByUniversityId IS NULL to prevent race conditions
+  const updated = await db
+    .update(problemStatements)
+    .set({
+      claimedByUniversityId: universityId,
+      claimedBySpocId: spocId,
+      claimedAt: new Date(),
+      status: "claimed",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(problemStatements.id, psId),
+        isNull(problemStatements.claimedByUniversityId)
+      )
+    )
+    .returning();
+
+  if (updated.length > 0) {
+    return updated[0];
+  }
+
+  // If update returned 0 rows, check whether the problem statement exists or was already claimed
+  const [existing] = await db
+    .select({
+      id: problemStatements.id,
+      claimedByUniversityId: problemStatements.claimedByUniversityId,
+      status: problemStatements.status,
+    })
+    .from(problemStatements)
+    .where(eq(problemStatements.id, psId))
+    .limit(1);
+
+  if (!existing) {
+    const error = new Error("Problem statement not found");
+    (error as any).statusCode = 404;
+    throw error;
+  }
+
+  // Already claimed by another institution
+  const error = new Error(
+    "This problem statement has already been claimed for research by another institution"
+  );
+  (error as any).statusCode = 409;
+  throw error;
+};
+
+/**
+ * Service: Fetch Problem Statements Claimed by a Specific University (Assigned Projects)
+ */
+export const getAssignedProjects = async (
+  universityId: string,
+  options: AvailableProblemStatementsOptions = {}
+) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 6));
+  const offset = (page - 1) * limit;
+
+  const whereCondition = eq(problemStatements.claimedByUniversityId, universityId);
+
+  // Total matching count
+  const countRes = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(problemStatements)
+    .where(whereCondition);
+
+  const total = countRes[0]?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // Paginated rows ordered by claimedAt DESC
+  const items = await db
+    .select()
+    .from(problemStatements)
+    .where(whereCondition)
+    .orderBy(desc(problemStatements.claimedAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+export interface UniversityProposalsOptions {
+  page?: number;
+  limit?: number;
+  status?: string;
+}
+
+/**
+ * Service: Fetch Proposals received by a University from Industry Partners
+ */
+export const getUniversityProposals = async (
+  universityId: string,
+  options: UniversityProposalsOptions = {}
+) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 10));
+  const offset = (page - 1) * limit;
+
+  const baseConditions = [eq(industryProposals.universityId, universityId)];
+
+  if (options.status && options.status !== "all") {
+    baseConditions.push(eq(industryProposals.status, options.status));
+  }
+
+  const whereClause = and(...baseConditions);
+
+  const [countRes] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(industryProposals)
+    .where(whereClause);
+
+  const total = countRes?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const items = await db
+    .select({
+      id: industryProposals.id,
+      proposalTitle: industryProposals.proposalTitle,
+      proposalSummary: industryProposals.proposalSummary,
+      contributionType: industryProposals.contributionType,
+      estimatedTimeline: industryProposals.estimatedTimeline,
+      documentUrl: industryProposals.documentUrl,
+      documentPublicId: industryProposals.documentPublicId,
+      documentName: industryProposals.documentName,
+      documentFormat: industryProposals.documentFormat,
+      status: industryProposals.status,
+      collegeFeedback: industryProposals.collegeFeedback,
+      reviewedAt: industryProposals.reviewedAt,
+      createdAt: industryProposals.createdAt,
+      problemStatement: {
+        id: problemStatements.id,
+        title: problemStatements.title,
+        category: problemStatements.category,
+        statementText: problemStatements.statementText,
+      },
+      industryPartner: {
+        id: industryPartners.id,
+        name: industryPartners.name,
+        type: industryPartners.type,
+        sectorTags: industryPartners.sectorTags,
+        location: industryPartners.location,
+        contactDetails: industryPartners.contactDetails,
+      },
+      industrySpoc: {
+        id: industrySpoc.id,
+        firstname: industrySpoc.firstname,
+        lastname: industrySpoc.lastname,
+        email: industrySpoc.email,
+        phone: industrySpoc.phone,
+        designation: industrySpoc.designation,
+      },
+    })
+    .from(industryProposals)
+    .innerJoin(
+      problemStatements,
+      eq(industryProposals.problemStatementId, problemStatements.id)
+    )
+    .innerJoin(
+      industryPartners,
+      eq(industryProposals.industryId, industryPartners.id)
+    )
+    .innerJoin(
+      industrySpoc,
+      eq(industryProposals.industrySpocId, industrySpoc.id)
+    )
+    .where(whereClause)
+    .orderBy(desc(industryProposals.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+/**
+ * Service: Review (Accept/Reject) an Industry Proposal
+ */
+export const reviewIndustryProposal = async (
+  proposalId: string,
+  universityId: string,
+  spocId: string,
+  status: "accepted" | "rejected",
+  feedback?: string
+) => {
+  const [existing] = await db
+    .select()
+    .from(industryProposals)
+    .where(
+      and(
+        eq(industryProposals.id, proposalId),
+        eq(industryProposals.universityId, universityId)
+      )
+    )
+    .limit(1);
+
+  if (!existing) {
+    const error = new Error("Proposal not found or does not belong to your university");
+    (error as any).statusCode = 404;
+    throw error;
+  }
+
+  const [updated] = await db
+    .update(industryProposals)
+    .set({
+      status,
+      collegeFeedback: feedback?.trim() || null,
+      reviewedAt: new Date(),
+      reviewedBySpocId: spocId,
+      updatedAt: new Date(),
+    })
+    .where(eq(industryProposals.id, proposalId))
+    .returning();
+
+  return updated;
 };

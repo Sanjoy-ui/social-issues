@@ -5,8 +5,12 @@ import {
   real,
   integer,
   timestamp,
+  varchar,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { university } from "./university.js";
+import { universitySpoc } from "./universitySpoc.js";
 
 /**
  * Task 3: problem_statements
@@ -17,13 +21,18 @@ export const problemStatements = pgTable("problem_statements", {
   title: text("title").notNull(),
   statementText: text("statement_text").notNull(),
   category: text("category"),
-  // draft | pending_review | live | assigned | in_progress | solved | rejected
+  // draft | pending_review | live | assigned | claimed | in_progress | solved | rejected
   status: text("status").notNull().default("draft"),
   confidence: real("confidence"),
   evidenceCount: integer("evidence_count").notNull().default(0),
   affectedArea: text("affected_area"),
   solutionDomain: text("solution_domain"),
   targetInstitutionType: text("target_institution_type"),
+  track: text("track"),
+  urgentEscalation: boolean("urgent_escalation").default(false),
+  claimedByUniversityId: varchar("claimed_by_university_id", { length: 255 }).references(() => university.universityID),
+  claimedBySpocId: varchar("claimed_by_spoc_id", { length: 255 }).references(() => universitySpoc.spocID),
+  claimedAt: timestamp("claimed_at"),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

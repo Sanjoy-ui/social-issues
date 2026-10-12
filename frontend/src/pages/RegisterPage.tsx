@@ -32,25 +32,18 @@ const SUGGESTED_SECTORS = [
   'AgriTech',
 ];
 
-const POPULAR_STATES = [
-  'Andhra Pradesh',
-  'Assam',
-  'Bihar',
-  'Delhi (NCT)',
-  'Gujarat',
-  'Haryana',
-  'Karnataka',
-  'Kerala',
-  'Madhya Pradesh',
-  'Maharashtra',
-  'Odisha',
-  'Punjab',
-  'Rajasthan',
-  'Tamil Nadu',
-  'Telangana',
-  'Uttar Pradesh',
-  'West Bengal',
-];
+
+
+export const TRIPURA_DISTRICTS = [
+  'Dhalai',
+  'Gomati',
+  'Khowai',
+  'North Tripura',
+  'Sepahijala',
+  'South Tripura',
+  'Unakoti',
+  'West Tripura',
+] as const;
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -67,12 +60,14 @@ export const RegisterPage: React.FC = () => {
   const [citizenPassword, setCitizenPassword] = useState('');
   const [citizenConfirmPassword, setCitizenConfirmPassword] = useState('');
   const [citizenPhone, setCitizenPhone] = useState('');
+  const [citizenCountryCode, setCitizenCountryCode] = useState('+91');
 
   // University Form State
   const [universityName, setUniversityName] = useState('');
   const [AISHECode, setAISHECode] = useState('');
   const [universityAddress, setUniversityAddress] = useState('');
   const [universityContactNo, setUniversityContactNo] = useState('');
+  const [universityCountryCode, setUniversityCountryCode] = useState('+91');
   const [universityWebsiteLink, setUniversityWebsiteLink] = useState('');
   const [departmentsInput, setDepartmentsInput] = useState('');
 
@@ -93,6 +88,7 @@ export const RegisterPage: React.FC = () => {
   const [industryLocation, setIndustryLocation] = useState('');
   const [industryWebsite, setIndustryWebsite] = useState('');
   const [industryPhone, setIndustryPhone] = useState('');
+  const [industryCountryCode, setIndustryCountryCode] = useState('+91');
   const [industryRegNo, setIndustryRegNo] = useState('');
 
   // Industry SPOC State
@@ -102,18 +98,20 @@ export const RegisterPage: React.FC = () => {
   const [indSpocPassword, setIndSpocPassword] = useState('');
   const [indSpocDesignation, setIndSpocDesignation] = useState('');
   const [indSpocPhone, setIndSpocPhone] = useState('');
+  const [indSpocCountryCode, setIndSpocCountryCode] = useState('+91');
 
-  // Government Nodal Officer State
+  // Government Nodal Officer State (Exclusively Tripura Jurisdiction)
   const [govtFirstname, setGovtFirstname] = useState('');
   const [govtLastname, setGovtLastname] = useState('');
   const [govtEmail, setGovtEmail] = useState('');
   const [govtPassword, setGovtPassword] = useState('');
-  const [govtState, setGovtState] = useState('');
+  const [govtState, setGovtState] = useState('Tripura');
   const [govtDistrict, setGovtDistrict] = useState('');
   const [govtDepartment, setGovtDepartment] = useState('');
   const [govtDesignation, setGovtDesignation] = useState('');
   const [govtOfficeId, setGovtOfficeId] = useState('');
   const [govtContactNo, setGovtContactNo] = useState('');
+  const [govtCountryCode, setGovtCountryCode] = useState('+91');
   const [districtAvailable, setDistrictAvailable] = useState<boolean | null>(null);
   const [checkingDistrict, setCheckingDistrict] = useState(false);
 
@@ -174,11 +172,12 @@ export const RegisterPage: React.FC = () => {
           return;
         }
 
+        const cleanCitizenPhone = citizenPhone.replace(/^\+91\s*/, '').replace(/\D/g, '').trim();
         const payload = {
           fullName: citizenFullName.trim(),
           email: citizenEmail.trim().toLowerCase(),
           password: citizenPassword,
-          phone: citizenPhone.trim() || undefined,
+          phone: cleanCitizenPhone ? `${citizenCountryCode} ${cleanCitizenPhone}` : undefined,
         };
 
         const response = await api.post('/api/v1/citizen/register', payload);
@@ -198,6 +197,13 @@ export const RegisterPage: React.FC = () => {
         }, 1200);
         return;
       } else if (role === 'GOVT') {
+        const cleanContact = govtContactNo.replace(/^\+91\s*/, '').replace(/\D/g, '').trim();
+        if (cleanContact.length < 10) {
+          setErrorMessage('Please enter a valid 10-digit contact number for the Nodal Officer.');
+          setLoading(false);
+          return;
+        }
+
         const payload = {
           firstname: govtFirstname.trim(),
           lastname: govtLastname.trim(),
@@ -208,7 +214,7 @@ export const RegisterPage: React.FC = () => {
           department: govtDepartment.trim(),
           designation: govtDesignation.trim(),
           officeId: govtOfficeId.trim() || undefined,
-          contactNo: govtContactNo.trim(),
+          contactNo: `${govtCountryCode} ${cleanContact}`,
         };
 
         const response = await api.post('/api/v1/govt/register', payload);
@@ -235,6 +241,9 @@ export const RegisterPage: React.FC = () => {
           return;
         }
 
+        const cleanIndustryPhone = industryPhone.replace(/^\+91\s*/, '').replace(/\D/g, '').trim();
+        const cleanSpocPhone = indSpocPhone.replace(/^\+91\s*/, '').replace(/\D/g, '').trim();
+
         const payload = {
           name: industryName.trim(),
           type: industryType,
@@ -247,7 +256,7 @@ export const RegisterPage: React.FC = () => {
           location: industryLocation.trim() || undefined,
           contactDetails: {
             website: industryWebsite.trim() || undefined,
-            phone: industryPhone.trim() || undefined,
+            phone: cleanIndustryPhone ? `${industryCountryCode} ${cleanIndustryPhone}` : undefined,
             officialEmail: indSpocEmail.trim() || undefined,
             registrationNumber: industryRegNo.trim() || undefined,
           },
@@ -257,7 +266,7 @@ export const RegisterPage: React.FC = () => {
             email: indSpocEmail.trim().toLowerCase(),
             password: indSpocPassword,
             designation: indSpocDesignation.trim() || 'SPOC',
-            phone: indSpocPhone.trim() || undefined,
+            phone: cleanSpocPhone ? `${indSpocCountryCode} ${cleanSpocPhone}` : undefined,
           },
         };
 
@@ -274,11 +283,13 @@ export const RegisterPage: React.FC = () => {
           .map((d) => d.trim())
           .filter(Boolean);
 
+        const cleanUnivPhone = universityContactNo.replace(/^\+91\s*/, '').replace(/\D/g, '').trim();
+
         const payload = {
           universityName: universityName.trim(),
           AISHECode: AISHECode.trim().toUpperCase(),
           universityAddress: universityAddress.trim() || undefined,
-          universityContactNo: universityContactNo.trim() || undefined,
+          universityContactNo: cleanUnivPhone ? `${universityCountryCode} ${cleanUnivPhone}` : undefined,
           universityWebsiteLink: universityWebsiteLink.trim() || undefined,
           universityResearchDepartments: researchDepartments,
           spoc: {
@@ -346,7 +357,7 @@ export const RegisterPage: React.FC = () => {
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
             {role === 'GOVT'
-              ? 'District Nodal Officer Onboarding'
+              ? 'Tripura District Nodal Officer Onboarding'
               : role === 'INDUSTRY'
               ? 'Industry Partner Onboarding'
               : role === 'CITIZEN'
@@ -355,7 +366,7 @@ export const RegisterPage: React.FC = () => {
           </h1>
           <p className="text-xs text-gray-500 mt-1">
             {role === 'GOVT'
-              ? 'Register the designated Nodal Authority for your district jurisdiction (strictly 1 per district)'
+              ? 'Register the designated Nodal Authority for your district in Tripura (strictly 1 per district)'
               : role === 'INDUSTRY'
               ? 'Connect your enterprise to fund, mentor, prototype, and scale civic solutions'
               : role === 'CITIZEN'
@@ -392,71 +403,86 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section 1: District Jurisdiction & Administrative Details */}
             <div className="bg-gray-50/70 p-5 rounded-xl border border-gray-200/60">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700">
-                  Administrative Jurisdiction
-                </h2>
-                <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  1 Nodal Officer per District
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                    Administrative Jurisdiction
+                  </h2>
+                  
+                </div>
+                
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* State / UT - Fixed to Tripura */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    State / UT *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    list="states-list"
-                    value={govtState}
-                    onChange={(e) => {
-                      setGovtState(e.target.value);
-                      checkDistrict(e.target.value, govtDistrict);
-                    }}
-                    placeholder="e.g. Karnataka"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
-                  <datalist id="states-list">
-                    {POPULAR_STATES.map((s) => (
-                      <option key={s} value={s} />
-                    ))}
-                  </datalist>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      State Jurisdiction *
+                    </label>
+                    
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value="Tripura"
+                      className="w-full px-3.5 py-2 text-sm bg-gray-100 text-gray-800 font-semibold border border-gray-300 rounded-lg cursor-not-allowed outline-none select-none"
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-xs font-medium text-gray-500">
+                       Locked
+                    </div>
+                  </div>
+                  
                 </div>
 
+                {/* District Name - Dropdown for Tripura's 8 Districts */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    District Name *
+                    District Name (Tripura) *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={govtDistrict}
                     onChange={(e) => {
-                      setGovtDistrict(e.target.value);
-                      checkDistrict(govtState, e.target.value);
+                      const selected = e.target.value;
+                      setGovtDistrict(selected);
+                      if (selected) {
+                        checkDistrict('Tripura', selected);
+                      } else {
+                        setDistrictAvailable(null);
+                      }
                     }}
-                    placeholder="e.g. Bengaluru Urban / Pune"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
-                  {govtDistrict.trim().length >= 2 && (
-                    <div className="mt-1 text-[11px]">
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-800 font-medium"
+                  >
+                    <option value="">Select District</option>
+                    {TRIPURA_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+
+                  {govtDistrict && (
+                    <div className="mt-1.5 text-[11px]">
                       {checkingDistrict ? (
-                        <span className="text-gray-500">Checking district designation status...</span>
+                        <span className="text-gray-500 flex items-center gap-1.5">
+                          <span className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                          Checking {govtDistrict} district designation status...
+                        </span>
                       ) : districtAvailable === true ? (
                         <span className="text-green-600 font-medium flex items-center gap-1">
                           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
-                          District available for designation
+                          {govtDistrict} district is available for designation
                         </span>
                       ) : districtAvailable === false ? (
                         <span className="text-red-600 font-medium flex items-center gap-1">
                           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                           </svg>
-                          District already assigned to another Nodal Officer
+                          {govtDistrict} district is already assigned to a Nodal Officer
                         </span>
                       ) : null}
                     </div>
@@ -472,7 +498,7 @@ export const RegisterPage: React.FC = () => {
                     required
                     value={govtDepartment}
                     onChange={(e) => setGovtDepartment(e.target.value)}
-                    placeholder="e.g. District Magistrate & Collectorate Office"
+                    placeholder="e.g. District Magistrate & Collectorate Office, West Tripura"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -486,7 +512,7 @@ export const RegisterPage: React.FC = () => {
                     required
                     value={govtDesignation}
                     onChange={(e) => setGovtDesignation(e.target.value)}
-                    placeholder="e.g. Additional District Magistrate (ADM)"
+                    placeholder="e.g. Additional District Magistrate (ADM) / District Nodal Officer"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -499,7 +525,7 @@ export const RegisterPage: React.FC = () => {
                     type="text"
                     value={govtOfficeId}
                     onChange={(e) => setGovtOfficeId(e.target.value)}
-                    placeholder="e.g. KA-GOV-2026-ADM01"
+                    placeholder="e.g. TR-GOV-2026-ADM01"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none uppercase"
                   />
                 </div>
@@ -519,10 +545,11 @@ export const RegisterPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    minLength={2}
                     required
                     value={govtFirstname}
                     onChange={(e) => setGovtFirstname(e.target.value)}
-                    placeholder="e.g. Suresh"
+                    placeholder="e.g. Biplab"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -536,7 +563,7 @@ export const RegisterPage: React.FC = () => {
                     required
                     value={govtLastname}
                     onChange={(e) => setGovtLastname(e.target.value)}
-                    placeholder="e.g. Kumar"
+                    placeholder="e.g. Debbarma"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -546,11 +573,13 @@ export const RegisterPage: React.FC = () => {
                     Official Government Email * (Login ID)
                   </label>
                   <input
+                    minLength={5}
+                    maxLength={320}
                     type="email"
                     required
                     value={govtEmail}
                     onChange={(e) => setGovtEmail(e.target.value)}
-                    placeholder="officer@karnataka.gov.in"
+                    placeholder="officer@tripura.gov.in"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -563,6 +592,7 @@ export const RegisterPage: React.FC = () => {
                     type="password"
                     required
                     minLength={8}
+                    maxLength={32}
                     value={govtPassword}
                     onChange={(e) => setGovtPassword(e.target.value)}
                     placeholder="Create a strong password"
@@ -572,16 +602,45 @@ export const RegisterPage: React.FC = () => {
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Official Contact Number * (Min 10 digits)
+                    Official Contact Number * (10-digit mobile number)
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    value={govtContactNo}
-                    onChange={(e) => setGovtContactNo(e.target.value)}
-                    placeholder="+91 9876543210"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
+                  <div className="flex rounded-lg shadow-2xs">
+                    <div className="relative shrink-0">
+                      <select
+                        value={govtCountryCode}
+                        onChange={(e) => setGovtCountryCode(e.target.value)}
+                        className="h-full py-2 pl-3 pr-7 border border-r-0 border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer appearance-none transition-colors"
+                        aria-label="Select Country Code"
+                      >
+                        <option value="+91">+91</option>
+                       
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      type="tel"
+                      required
+                      value={govtContactNo}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9]/g, '');
+                        if (govtCountryCode === '+91') {
+                          if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                          else if (val.startsWith('0') && val.length > 10) val = val.slice(1);
+                          val = val.slice(0, 10);
+                        }
+                        setGovtContactNo(val);
+                      }}
+                      placeholder="98765 43210"
+                      className="flex-1 min-w-0 block w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-none rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Country code is directly selected ({govtCountryCode}). Enter your 10-digit mobile number without prefix.
+                  </p>
                 </div>
               </div>
             </div>
@@ -589,8 +648,8 @@ export const RegisterPage: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || districtAvailable === false}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-sm hover:shadow active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 text-sm"
+              disabled={loading || !govtDistrict || districtAvailable === false || govtContactNo.length < 10}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-sm hover:shadow active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed text-sm"
             >
               {loading ? (
                 <>
@@ -725,15 +784,36 @@ export const RegisterPage: React.FC = () => {
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Operating Districts / Coverage (Comma-separated)
+                    Operating Districts / Focus in Tripura (Comma-separated)
                   </label>
                   <input
                     type="text"
                     value={industryDistricts}
                     onChange={(e) => setIndustryDistricts(e.target.value)}
-                    placeholder="e.g. Bengaluru Urban, Pune, NCR"
+                    placeholder="e.g. West Tripura, Gomati, Dhalai"
                     className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <span className="text-[11px] text-gray-400 self-center mr-1">Tripura districts:</span>
+                    {TRIPURA_DISTRICTS.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          const current = industryDistricts
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          if (!current.includes(d)) {
+                            setIndustryDistricts([...current, d].join(', '));
+                          }
+                        }}
+                        className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 transition-colors cursor-pointer border border-gray-200"
+                      >
+                        + {d}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -766,13 +846,41 @@ export const RegisterPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Official Contact Phone
                   </label>
-                  <input
-                    type="tel"
-                    value={industryPhone}
-                    onChange={(e) => setIndustryPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
+                  <div className="flex rounded-lg shadow-2xs">
+                    <div className="relative shrink-0">
+                      <select
+                        value={industryCountryCode}
+                        onChange={(e) => setIndustryCountryCode(e.target.value)}
+                        className="h-full py-2 pl-3 pr-7 border border-r-0 border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer appearance-none transition-colors"
+                        aria-label="Select Country Code"
+                      >
+                        <option value="+91">+91</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      type="tel"
+                      value={industryPhone}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9]/g, '');
+                        if (industryCountryCode === '+91') {
+                          if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                          else if (val.startsWith('0') && val.length > 10) val = val.slice(1);
+                          val = val.slice(0, 10);
+                        }
+                        setIndustryPhone(val);
+                      }}
+                      placeholder="98765 43210"
+                      className="flex-1 min-w-0 block w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-none rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Country code is directly selected ({industryCountryCode}). Enter your 10-digit mobile number without prefix.
+                  </p>
                 </div>
               </div>
             </div>
@@ -856,15 +964,41 @@ export const RegisterPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Contact Phone Number
+                    Contact Phone Number (Optional)
                   </label>
-                  <input
-                    type="tel"
-                    value={indSpocPhone}
-                    onChange={(e) => setIndSpocPhone(e.target.value)}
-                    placeholder="+91 9876543210"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
+                  <div className="flex rounded-lg shadow-2xs">
+                    <div className="relative shrink-0">
+                      <select
+                        value={indSpocCountryCode}
+                        onChange={(e) => setIndSpocCountryCode(e.target.value)}
+                        className="h-full py-2 pl-3 pr-7 border border-r-0 border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer appearance-none transition-colors"
+                        aria-label="Select Country Code"
+                      >
+                        <option value="+91">+91</option>
+                        
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      type="tel"
+                      value={indSpocPhone}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9]/g, '');
+                        if (indSpocCountryCode === '+91') {
+                          if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                          else if (val.startsWith('0') && val.length > 10) val = val.slice(1);
+                          val = val.slice(0, 10);
+                        }
+                        setIndSpocPhone(val);
+                      }}
+                      placeholder="98765 43210"
+                      className="flex-1 min-w-0 block w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-none rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -925,15 +1059,41 @@ export const RegisterPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Campus Contact Number
+                    Campus Contact Number (Optional)
                   </label>
-                  <input
-                    type="tel"
-                    value={universityContactNo}
-                    onChange={(e) => setUniversityContactNo(e.target.value)}
-                    placeholder="+91 9876543210"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
+                  <div className="flex rounded-lg shadow-2xs">
+                    <div className="relative shrink-0">
+                      <select
+                        value={universityCountryCode}
+                        onChange={(e) => setUniversityCountryCode(e.target.value)}
+                        className="h-full py-2 pl-3 pr-7 border border-r-0 border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer appearance-none transition-colors"
+                        aria-label="Select Country Code"
+                      >
+                        <option value="+91">+91</option>
+                        
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      type="tel"
+                      value={universityContactNo}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9]/g, '');
+                        if (universityCountryCode === '+91') {
+                          if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                          else if (val.startsWith('0') && val.length > 10) val = val.slice(1);
+                          val = val.slice(0, 10);
+                        }
+                        setUniversityContactNo(val);
+                      }}
+                      placeholder="98765 43210"
+                      className="flex-1 min-w-0 block w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-none rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium"
+                    />
+                  </div>
                 </div>
 
                 <div className="sm:col-span-2">
@@ -1126,13 +1286,39 @@ export const RegisterPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Phone Number (Optional)
                   </label>
-                  <input
-                    type="tel"
-                    value={citizenPhone}
-                    onChange={(e) => setCitizenPhone(e.target.value)}
-                    placeholder="10-digit mobile number"
-                    className="w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
+                  <div className="flex rounded-lg shadow-2xs">
+                    <div className="relative shrink-0">
+                      <select
+                        value={citizenCountryCode}
+                        onChange={(e) => setCitizenCountryCode(e.target.value)}
+                        className="h-full py-2 pl-3 pr-7 border border-r-0 border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer appearance-none transition-colors"
+                        aria-label="Select Country Code"
+                      >
+                        <option value="+91">+91 </option>
+                        
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      type="tel"
+                      value={citizenPhone}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9]/g, '');
+                        if (citizenCountryCode === '+91') {
+                          if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                          else if (val.startsWith('0') && val.length > 10) val = val.slice(1);
+                          val = val.slice(0, 10);
+                        }
+                        setCitizenPhone(val);
+                      }}
+                      placeholder="98765 43210"
+                      className="flex-1 min-w-0 block w-full px-3.5 py-2 text-sm bg-white border border-gray-300 rounded-none rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

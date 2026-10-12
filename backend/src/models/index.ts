@@ -15,3 +15,4 @@ export * from "./problemStatement.js";
 export * from "./psEmbedding.js";
 export * from "./psIssueLink.js";
 export * from "./agentRun.js";
+export * from "./industryProposal.js";

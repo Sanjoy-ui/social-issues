@@ -57,7 +57,8 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/api/v1/industry/login') &&
       !originalRequest.url?.includes('/api/v1/industry/refresh') &&
       !originalRequest.url?.includes('/api/v1/govt/login') &&
-      !originalRequest.url?.includes('/api/v1/govt/refresh')
+      !originalRequest.url?.includes('/api/v1/govt/refresh') &&
+      !originalRequest.url?.includes('/logout')
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

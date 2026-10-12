@@ -128,6 +128,44 @@ app.listen(PORT, async () => {
       );
     `);
     console.log("Database: 'citizens' table verified/initialized successfully.");
+
+    await pool.query(`
+      ALTER TABLE problem_statements
+        ADD COLUMN IF NOT EXISTS track TEXT,
+        ADD COLUMN IF NOT EXISTS urgent_escalation BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS claimed_by_university_id VARCHAR(255) REFERENCES university("universityID"),
+        ADD COLUMN IF NOT EXISTS claimed_by_spoc_id VARCHAR(255) REFERENCES university_spoc("spocID"),
+        ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP;
+
+      CREATE INDEX IF NOT EXISTS idx_ps_claimed_univ ON problem_statements(claimed_by_university_id);
+
+      CREATE TABLE IF NOT EXISTS "industry_proposals" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "problem_statement_id" uuid NOT NULL REFERENCES problem_statements("id"),
+        "university_id" varchar(255) NOT NULL REFERENCES university("universityID"),
+        "industry_id" varchar(255) NOT NULL REFERENCES industry_partners("id"),
+        "industry_spoc_id" varchar(255) NOT NULL REFERENCES industry_spoc("id"),
+        "proposal_title" text NOT NULL,
+        "proposal_summary" text NOT NULL,
+        "contribution_type" text NOT NULL DEFAULT 'CSR_GRANT',
+        "estimated_timeline" text,
+        "document_url" text NOT NULL,
+        "document_public_id" text NOT NULL,
+        "document_name" text NOT NULL,
+        "document_format" text,
+        "status" text NOT NULL DEFAULT 'pending',
+        "college_feedback" text,
+        "reviewed_at" timestamp,
+        "reviewed_by_spoc_id" varchar(255) REFERENCES university_spoc("spocID"),
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_proposals_univ ON industry_proposals("university_id");
+      CREATE INDEX IF NOT EXISTS idx_proposals_industry ON industry_proposals("industry_id");
+      CREATE INDEX IF NOT EXISTS idx_proposals_ps ON industry_proposals("problem_statement_id");
+    `);
+    console.log("Database: 'problem_statements' claiming columns & 'industry_proposals' table verified/initialized successfully.");
   } catch (error) {
     console.error("Database initialization notice:", error);
   }

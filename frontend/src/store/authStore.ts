@@ -107,11 +107,21 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   fetchCitizenProfile: () => Promise<CitizenUser | null>;
+  fetchGovtProfile: () => Promise<GovtOfficerUser | null>;
 }
 
 const getInitialCitizen = (): CitizenUser | null => {
   try {
     const raw = localStorage.getItem('civic_citizen');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const getInitialGovtOfficer = (): GovtOfficerUser | null => {
+  try {
+    const raw = localStorage.getItem('civic_govt');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -124,7 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   university: null,
   industrySpoc: null,
   industryPartner: null,
-  govtOfficer: null,
+  govtOfficer: typeof window !== 'undefined' ? getInitialGovtOfficer() : null,
   citizen: typeof window !== 'undefined' ? getInitialCitizen() : null,
   accessToken: null,
   isAuthenticated: typeof window !== 'undefined' ? Boolean(localStorage.getItem('civic_user_role')) : false,
@@ -144,6 +154,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('civic_user_role', role);
     if (citizen) {
       localStorage.setItem('civic_citizen', JSON.stringify(citizen));
+    }
+    if (govtOfficer) {
+      localStorage.setItem('civic_govt', JSON.stringify(govtOfficer));
     }
     set({
       role,
@@ -181,6 +194,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       localStorage.removeItem('civic_user_role');
       localStorage.removeItem('civic_citizen');
+      localStorage.removeItem('civic_govt');
       set({
         role: null,
         spoc: null,
@@ -214,9 +228,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return null;
   },
 
+  fetchGovtProfile: async () => {
+    try {
+      const res = await api.get('/api/v1/govt/me');
+      if (res.data?.data) {
+        const govtOfficer = res.data.data;
+        localStorage.setItem('civic_govt', JSON.stringify(govtOfficer));
+        localStorage.setItem('civic_user_role', 'GOVT');
+        set({ govtOfficer, role: 'GOVT', isAuthenticated: true });
+        return govtOfficer;
+      }
+    } catch {
+      await get().checkAuth();
+      return get().govtOfficer;
+    }
+    return null;
+  },
+
   checkAuth: async () => {
+    const storedRole = localStorage.getItem('civic_user_role') as UserRole | null;
+    if (!storedRole) {
+      set({
+        role: null,
+        spoc: null,
+        university: null,
+        industrySpoc: null,
+        industryPartner: null,
+        govtOfficer: null,
+        citizen: null,
+        accessToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      return false;
+    }
+
     set({ isLoading: true });
-    const storedRole = (localStorage.getItem('civic_user_role') as UserRole) || 'UNIVERSITY';
 
     try {
       if (storedRole === 'CITIZEN') {
@@ -263,9 +310,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             headers: { Authorization: `Bearer ${newAccessToken}` },
           });
 
+          const officerData = profileRes.data.data;
+          if (officerData) {
+            localStorage.setItem('civic_govt', JSON.stringify(officerData));
+            localStorage.setItem('civic_user_role', 'GOVT');
+          }
+
           set({
             role: 'GOVT',
-            govtOfficer: profileRes.data.data,
+            govtOfficer: officerData || getInitialGovtOfficer(),
             isAuthenticated: true,
             isLoading: false,
             error: null,

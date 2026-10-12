@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc, isNull, ne } from "drizzle-orm";
 import { db } from "../config/db.js";
-import { govtNodal } from "../models/index.js";
-import type { RegisterGovtNodalDTO, LoginGovtNodalDTO } from "../dto/govtNodal.dto.js";
+import { govtNodal, problemStatements, university, universitySpoc, industryPartners, industrySpoc } from "../models/index.js";
+import { type RegisterGovtNodalDTO, type LoginGovtNodalDTO, TRIPURA_DISTRICTS } from "../dto/govtNodal.dto.js";
 
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "access_secret_civic_resolve_2026";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "refresh_secret_civic_resolve_2026";
@@ -64,6 +64,43 @@ export const checkDistrictAvailability = async (state: string, district: string)
     state,
     district,
   };
+};
+
+/**
+ * Service: Get all 8 Tripura districts and their designation availability status
+ */
+export const getTripuraDistrictsStatus = async () => {
+  const activeOfficers = await db
+    .select({
+      district: govtNodal.district,
+      designation: govtNodal.designation,
+      department: govtNodal.department,
+    })
+    .from(govtNodal)
+    .where(
+      and(
+        sql`LOWER(${govtNodal.state}) = 'tripura'`,
+        eq(govtNodal.isActive, true)
+      )
+    );
+
+  const assignedMap = new Map<string, { designation: string; department: string }>();
+  for (const officer of activeOfficers) {
+    assignedMap.set(officer.district.trim().toLowerCase(), {
+      designation: officer.designation,
+      department: officer.department,
+    });
+  }
+
+  return TRIPURA_DISTRICTS.map((district) => {
+    const assigned = assignedMap.get(district.toLowerCase());
+    return {
+      district,
+      state: "Tripura",
+      available: !assigned,
+      assignedTo: assigned ? { designation: assigned.designation, department: assigned.department } : null,
+    };
+  });
 };
 
 /**
@@ -332,3 +369,224 @@ export const getGovtProfile = async (officerId: string) => {
     createdAt: officer.createdAt,
   };
 };
+
+export interface ProblemStatementQueryOptions {
+  page?: number;
+  limit?: number;
+  status?: string;
+  category?: string;
+  district?: string;
+}
+
+/**
+ * Service: Fetch Paginated Problem Statements from PostgreSQL
+ */
+export const getPaginatedProblemStatements = async (options: ProblemStatementQueryOptions = {}) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 6));
+  const offset = (page - 1) * limit;
+
+  // Build filter conditions: by default exclude problem statements already claimed by HE institutions
+  const conditions = [
+    isNull(problemStatements.claimedByUniversityId),
+    ne(problemStatements.status, "claimed"),
+    ne(problemStatements.status, "assigned"),
+  ];
+
+  if (options.status && options.status !== "all") {
+    conditions.push(eq(problemStatements.status, options.status));
+  }
+  if (options.category && options.category !== "all") {
+    conditions.push(eq(problemStatements.category, options.category));
+  }
+  if (options.district && options.district !== "all") {
+    conditions.push(sql`LOWER(${problemStatements.affectedArea}) = ${options.district.trim().toLowerCase()}`);
+  }
+
+  const whereClause = and(...conditions);
+
+  // 1. Total matching count
+  const countQuery = db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(problemStatements);
+
+  const countRes = whereClause ? await countQuery.where(whereClause) : await countQuery;
+  const total = countRes[0]?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // 2. Paginated rows ordered by createdAt DESC
+  const itemsQuery = db
+    .select()
+    .from(problemStatements)
+    .orderBy(desc(problemStatements.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const items = whereClause ? await itemsQuery.where(whereClause) : await itemsQuery;
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+export interface HigherEducationQueryOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+/**
+ * Service: Fetch Registered Higher Education Institutions with SPOC Details
+ */
+export const getHigherEducationInstitutions = async (options: HigherEducationQueryOptions = {}) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 6));
+  const offset = (page - 1) * limit;
+
+  // Optional search filter
+  const conditions = [];
+  if (options.search && options.search.trim()) {
+    const term = `%${options.search.trim().toLowerCase()}%`;
+    conditions.push(
+      sql`(LOWER(${university.universityName}) LIKE ${term} OR LOWER(${university.AISHECode}) LIKE ${term})`
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // 1. Total matching count
+  const countQuery = db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(university);
+
+  const countRes = whereClause ? await countQuery.where(whereClause) : await countQuery;
+  const total = countRes[0]?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // 2. Select institutions joined with university_spoc
+  const itemsQuery = db
+    .select({
+      universityID: university.universityID,
+      universityName: university.universityName,
+      universityAddress: university.universityAddress,
+      universityContactNo: university.universityContactNo,
+      universityWebsiteLink: university.universityWebsiteLink,
+      isUniversityActive: university.isUniversityActive,
+      isUniversityVerified: university.isUniversityVerified,
+      universityResearchDepartments: university.universityResearchDepartments,
+      AISHECode: university.AISHECode,
+      createdAt: university.createdAt,
+      spoc: {
+        spocID: universitySpoc.spocID,
+        firstname: universitySpoc.firstname,
+        lastname: universitySpoc.lastname,
+        universityEmail: universitySpoc.universityEmail,
+        positionTitle: universitySpoc.positionTitle,
+        departmentSpoc: universitySpoc.departmentSpoc,
+      },
+    })
+    .from(university)
+    .leftJoin(universitySpoc, eq(university.universityID, universitySpoc.universityID))
+    .orderBy(desc(university.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const items = whereClause ? await itemsQuery.where(whereClause) : await itemsQuery;
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+export interface IndustryPartnerQueryOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: string;
+}
+
+/**
+ * Service: Fetch Registered Industry & Corporate Partners with SPOC Details
+ */
+export const getIndustryPartners = async (options: IndustryPartnerQueryOptions = {}) => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || 6));
+  const offset = (page - 1) * limit;
+
+  // Optional search or type filters
+  const conditions = [];
+  if (options.search && options.search.trim()) {
+    const term = `%${options.search.trim().toLowerCase()}%`;
+    conditions.push(
+      sql`(LOWER(${industryPartners.name}) LIKE ${term} OR LOWER(${industryPartners.location}) LIKE ${term})`
+    );
+  }
+  if (options.type && options.type !== "all") {
+    conditions.push(eq(industryPartners.type, options.type as any));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // 1. Total matching count
+  const countQuery = db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(industryPartners);
+
+  const countRes = whereClause ? await countQuery.where(whereClause) : await countQuery;
+  const total = countRes[0]?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // 2. Select industries joined with industry_spoc
+  const itemsQuery = db
+    .select({
+      id: industryPartners.id,
+      name: industryPartners.name,
+      type: industryPartners.type,
+      sectorTags: industryPartners.sectorTags,
+      contributionTypes: industryPartners.contributionTypes,
+      operatingDistricts: industryPartners.operatingDistricts,
+      location: industryPartners.location,
+      contactDetails: industryPartners.contactDetails,
+      isActive: industryPartners.isActive,
+      createdAt: industryPartners.createdAt,
+      spoc: {
+        id: industrySpoc.id,
+        firstname: industrySpoc.firstname,
+        lastname: industrySpoc.lastname,
+        email: industrySpoc.email,
+        designation: industrySpoc.designation,
+        phone: industrySpoc.phone,
+      },
+    })
+    .from(industryPartners)
+    .leftJoin(industrySpoc, eq(industryPartners.id, industrySpoc.industryId))
+    .orderBy(desc(industryPartners.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const items = whereClause ? await itemsQuery.where(whereClause) : await itemsQuery;
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+
